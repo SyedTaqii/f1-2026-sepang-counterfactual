@@ -1,0 +1,19 @@
+# Every assumption and magic number lives here. Keys are added milestone by milestone.
+
+race:
+  year: 2026
+  round: 16                         # load by round, not by name: the "Bahrain GP" was held at Sepang
+  session: R
+  expected_location: Kuala Lumpur   # FastF1's name for Sepang; load_session asserts it
+  first_racing_lap: 3               # laps 1-2 were behind the SC, then a standing start (race control: "STANDING START", lap 2)
+
+cache_dir: cache
+
+drivers:
+  target: HAM
+  teammate: LEC
+
+fact_check:
+  top_n: 5                          # leaders (on inters at first_racing_lap) used to define the crossover; finishers in the stint table
+  position_laps: [1, 3, 4, 8, 12, 13, 22, 55]   # laps at which to report the target's running position
+  timing_tolerance_s: 1.0           # flag drivers whose FastF1 finish gap differs from the official one by more than this
