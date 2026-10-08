@@ -6,6 +6,7 @@ race:
   session: R
   expected_location: Kuala Lumpur   # FastF1's name for Sepang; load_session asserts it
   first_racing_lap: 3               # laps 1-2 were behind the SC, then a standing start (race control: "STANDING START", lap 2)
+  leaders_n: 5                      # "the leaders" = top N on inters at first_racing_lap; they define the crossover lap and the inter-pace reference
 
 cache_dir: cache
 
@@ -14,6 +15,17 @@ drivers:
   teammate: LEC
 
 fact_check:
-  top_n: 5                          # leaders (on inters at first_racing_lap) used to define the crossover; finishers in the stint table
   position_laps: [1, 3, 4, 8, 12, 13, 22, 55]   # laps at which to report the target's running position
   timing_tolerance_s: 1.0           # flag drivers whose FastF1 finish gap differs from the official one by more than this
+
+pace:
+  dry_fit_start_lap: 17             # field median lap time falls 109.4 -> 103.5 s over laps 13-16 (track still drying), then flattens
+  traffic_gap_s: 1.0                # a lap is in traffic if any car crossed the line less than this ahead
+  wet_sc_wear: 0.0                  # tyre wear of a wet or neutralised lap, as a fraction of a green dry lap (0 = none, 1 = raw TyreLife)
+  proxy_weight: 0.5                 # inter pace = w * proxy (via LEC) + (1-w) * ratio (HAM dry gap scaled); sigma covers the gap between them either way
+
+pit_loss:
+  ref_window: 5                     # green stops: the driver's clean laps within this many laps of the stop set the reference pace
+
+start:
+  comparable_grid_max: 8            # inter starters from grid P1..this are "comparable" for the standing-start gap

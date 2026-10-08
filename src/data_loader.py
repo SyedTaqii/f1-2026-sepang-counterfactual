@@ -63,9 +63,14 @@ def lap_ranges(laps):
     return ", ".join(runs)
 
 
+def inter_leaders(laps, lap, top_n):
+    """The top_n cars (by position) running inters on `lap`."""
+    return laps[(laps.LapNumber == lap) & (laps.Compound == "INTERMEDIATE")].nsmallest(top_n, "Position").Driver.tolist()
+
+
 def crossover_laps(laps, stints, lap, top_n):
     """Pit-in lap (= last lap on inters) of the top_n cars that were on inters at `lap`."""
-    on_inters = laps[(laps.LapNumber == lap) & (laps.Compound == "INTERMEDIATE")].nsmallest(top_n, "Position").Driver
+    on_inters = inter_leaders(laps, lap, top_n)
     inter = stints[stints.Driver.isin(on_inters) & (stints.compound == "INTERMEDIATE")]
     return inter.groupby("Driver").last_lap.max().reindex(on_inters)
 
@@ -89,7 +94,7 @@ def fact_check(session, cfg):
     """Print the M1 fact table: everything the PRD's race story claims, checked against the data."""
     laps, res, fc = session.laps, session.results, cfg["fact_check"]
     target, mate = cfg["drivers"]["target"], cfg["drivers"]["teammate"]
-    first = cfg["race"]["first_racing_lap"]
+    first, n = cfg["race"]["first_racing_lap"], cfg["race"]["leaders_n"]
     section = lambda title: print(f"\n=== {title} ===")
 
     section("Event")
@@ -119,13 +124,13 @@ def fact_check(session, cfg):
     print(f"rainfall from {wet.Time.min()} to {wet.Time.max()} (session time); race started {session.session_start_time}")
     print(f"-> rain during the race: {bool((wet.Time >= session.session_start_time).any())}")
 
-    section(f"Stints: {target}, {mate} + top {fc['top_n']} finishers")
-    drivers = [target, mate] + res.nsmallest(fc["top_n"], "Position").Abbreviation.tolist()
+    section(f"Stints: {target}, {mate} + top {n} finishers")
+    drivers = [target, mate] + res.nsmallest(n, "Position").Abbreviation.tolist()
     stints = stint_table(laps, list(dict.fromkeys(drivers)))
     print(stints.to_string(index=False))
 
-    section(f"Crossover: when the top {fc['top_n']} on inters at lap {first} pitted for slicks")
-    cross = crossover_laps(laps, stint_table(laps, laps.Driver.unique().tolist()), first, fc["top_n"])
+    section(f"Crossover: when the top {n} on inters at lap {first} pitted for slicks")
+    cross = crossover_laps(laps, stint_table(laps, laps.Driver.unique().tolist()), first, n)
     print(cross.to_string())
     print(f"-> crossover lap (median pit-in) = {int(cross.median())}; SC on that lap: {bool(flags.sc.get(int(cross.median())))}")
 
