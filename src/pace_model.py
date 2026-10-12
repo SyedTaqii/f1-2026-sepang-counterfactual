@@ -5,6 +5,12 @@ import pandas as pd
 from src.data_loader import inter_leaders
 
 
+def lap_wear(phases, cfg):
+    """Tyre-age increment per lap: 1 on a green dry lap, pace.wet_sc_wear on a wet or neutralised one."""
+    green_dry = (phases.condition == "dry") & (phases.neutral == "green")
+    return pd.Series(np.where(green_dry, 1.0, cfg["pace"]["wet_sc_wear"]), phases.index)
+
+
 def add_lap_features(laps, phases, cfg):
     """Copy of `laps` with lap_s (lap time, s), gap_ahead (s), condition/neutral (from the phase table),
     eff_age (effective tyre age) and clean (usable for pace fits)."""
@@ -19,7 +25,7 @@ def add_lap_features(laps, phases, cfg):
 
     # Effective tyre age: laps the set did before this stint count fully; in this stint, a wet or
     # neutralised lap counts wet_sc_wear of a green dry lap. With wet_sc_wear = 1 this equals TyreLife.
-    wear = np.where((df.condition == "dry") & (df.neutral == "green"), 1.0, p["wet_sc_wear"])
+    wear = lap_wear(phases, cfg).reindex(df.LapNumber).to_numpy()
     stint = df.groupby(["Driver", "Stint"])
     df["eff_age"] = stint.TyreLife.transform("first") - 1 + pd.Series(wear, df.index).groupby([df.Driver, df.Stint]).cumsum()
 
@@ -36,6 +42,14 @@ def add_lap_features(laps, phases, cfg):
     return df
 
 
+def design(d, n_laps, target):
+    """The dry fit's regressors for the laps in d (see fit_pace)."""
+    comp = pd.get_dummies(d.Compound.replace("None", "UNKNOWN"), dtype=float)
+    return pd.concat([comp, comp.mul(d.eff_age, axis=0).add_prefix("deg_"),
+                      (n_laps - d.LapNumber).rename("remaining").astype(float),
+                      pd.get_dummies(d.Driver, dtype=float).drop(columns=target, errors="ignore").add_prefix("d_")], axis=1)
+
+
 def fit_pace(df, cfg):
     """Field-wide OLS on every driver's clean dry laps from dry_fit_start_lap:
 
@@ -49,15 +63,51 @@ def fit_pace(df, cfg):
     target = cfg["drivers"]["target"]
     d = df[df.clean & (df.condition == "dry") & (df.LapNumber >= cfg["pace"]["dry_fit_start_lap"])]
     d = d.dropna(subset=["eff_age"])
-    comp = pd.get_dummies(d.Compound.replace("None", "UNKNOWN"), dtype=float)
-    X = pd.concat([comp, comp.mul(d.eff_age, axis=0).add_prefix("deg_"),
-                   (df.LapNumber.max() - d.LapNumber).rename("remaining").astype(float),
-                   pd.get_dummies(d.Driver, dtype=float).drop(columns=target).add_prefix("d_")], axis=1)
+    X = design(d, df.LapNumber.max(), target)
     coef, *_ = np.linalg.lstsq(X, d.lap_s, rcond=None)
     resid = d.lap_s - X @ coef
     s2 = resid @ resid / (len(d) - X.shape[1])
     return {"coef": pd.Series(coef, X.columns), "cov": pd.DataFrame(s2 * np.linalg.inv(X.T @ X), X.columns, X.columns),
             "resid_sd": float(resid[d.Driver == target].std()), "n": len(d), "n_target": int((d.Driver == target).sum())}
+
+
+def residuals(d, fit, n_laps, target):
+    """Lap time minus the fit's prediction, for the laps in d whose driver and compound are in the fit."""
+    X = design(d, n_laps, target)
+    keep = X[X.columns.difference(fit["coef"].index)].eq(0).all(axis=1)
+    return d.lap_s[keep] - X[keep].reindex(columns=fit["coef"].index, fill_value=0.0) @ fit["coef"]
+
+
+def lap_effects(df, fit, cfg):
+    """Median residual of the field's clean dry laps, per lap: what every car felt that the fit can't see
+    (the track still drying on laps 13-16, yellow flags)."""
+    d = df[df.clean & (df.condition == "dry")].dropna(subset=["eff_age"])
+    r = residuals(d, fit, df.LapNumber.max(), cfg["drivers"]["target"])
+    return r.groupby(d.LapNumber[r.index]).median()
+
+
+def pass_cost(df, fit, effects, passes, cfg):
+    """Seconds a car loses per on-track pass: OLS slope of (lap time - fit - lap effect) on the cars it passed that
+    lap, over every green dry lap without a stop, clean air or not. The target is left out, so the back-test
+    checks this number instead of being fitted by it. passes: lap x driver counts (simulator.passes_per_lap)."""
+    target = cfg["drivers"]["target"]
+    d = df[(df.condition == "dry") & (df.neutral == "green") & df.PitInTime.isna() & df.PitOutTime.isna()
+           & (df.Driver != target)].dropna(subset=["lap_s", "eff_age"])
+    r = residuals(d, fit, df.LapNumber.max(), target)
+    d = d.loc[r.index]
+    y = (r - d.LapNumber.map(effects).fillna(0.0)).to_numpy()
+    x = passes.stack().reindex(pd.MultiIndex.from_arrays([d.LapNumber, d.Driver])).to_numpy(dtype=float)
+    A = np.c_[np.ones(len(x)), x]
+    coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+    e = y - A @ coef
+    cov = e @ e / (len(y) - 2) * np.linalg.inv(A.T @ A)
+    return {"mean": float(coef[1]), "se": float(np.sqrt(cov[1, 1])), "n_passes": int(x.sum())}
+
+
+def dry_lap_time(coef, effects, n_laps):
+    """The target's green dry lap time, lap_time(lap, compound, age), for the simulator. coef can be a sampled set."""
+    return lambda lap, comp, age: (coef[comp] + coef[f"deg_{comp}"] * age + coef["remaining"] * (n_laps - lap)
+                                   + effects.get(lap, 0.0))
 
 
 def se(fit, name):
@@ -109,13 +159,13 @@ def start_gaps(df, results, cfg):
 
 if __name__ == "__main__":
     import fastf1
-    from src.data_loader import load_config, load_session
+    from src.data_loader import fix_timing, load_config, load_session
     from src.segmentation import phase_table
 
     fastf1.set_log_level("ERROR")
     cfg = load_config()
     session = load_session(cfg)
-    df = add_lap_features(session.laps, phase_table(session, cfg), cfg)
+    df = add_lap_features(fix_timing(session, cfg), phase_table(session, cfg), cfg)
     target, mate = cfg["drivers"]["target"], cfg["drivers"]["teammate"]
 
     print(f"clean laps: {int(df.clean.sum())} of {len(df)}")

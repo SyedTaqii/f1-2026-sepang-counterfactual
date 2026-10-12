@@ -82,12 +82,22 @@ def official_gaps(results):
     return finished.Time.dt.total_seconds().mask(finished.Position == 1, 0.0)
 
 
-def timing_vs_official(session):
+def timing_vs_official(laps, results):
     """Finish gap to the winner from FastF1 lap timing vs the official classification, per finisher."""
-    official = official_gaps(session.results)
-    last = session.laps.sort_values("LapNumber").groupby("Driver").tail(1).set_index("Driver").Time
+    official = official_gaps(results)
+    last = laps.sort_values("LapNumber").groupby("Driver").tail(1).set_index("Driver").Time
     timing = (last - last[official.index[0]]).dt.total_seconds().reindex(official.index)
     return pd.DataFrame({"official_gap": official, "timing_gap": timing, "error": timing - official})
+
+
+def fix_timing(session, cfg):
+    """Copy of the laps with each driver in data_fixes.timing_offset_from_lap shifted from that lap on, so their
+    finish gap matches the official one. Lap times are untouched; only the cumulative Time moves."""
+    laps = session.laps.copy()
+    error = timing_vs_official(session.laps, session.results).error
+    for drv, lap in cfg["data_fixes"]["timing_offset_from_lap"].items():
+        laps.loc[(laps.Driver == drv) & (laps.LapNumber >= lap), "Time"] -= pd.Timedelta(seconds=error[drv])
+    return laps
 
 
 def fact_check(session, cfg):
@@ -141,7 +151,7 @@ def fact_check(session, cfg):
     print(f"ever on inters: {(laps.pick_drivers(target).Compound == 'INTERMEDIATE').any()}")
 
     section(f"Data quality: FastF1 timing gap vs official (|error| > {fc['timing_tolerance_s']} s)")
-    tv = timing_vs_official(session)
+    tv = timing_vs_official(laps, res)
     bad = tv[tv.error.abs() > fc["timing_tolerance_s"]]
     print(bad.round(3).to_string() if len(bad) else "all finishers within tolerance")
     print(f"max |error| among the rest: {tv.drop(bad.index).error.abs().max():.3f} s")

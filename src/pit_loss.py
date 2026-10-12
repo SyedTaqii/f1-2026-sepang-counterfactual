@@ -2,7 +2,7 @@
 import fastf1
 import pandas as pd
 
-from src.data_loader import load_config, load_session
+from src.data_loader import fix_timing, load_config, load_session
 from src.pace_model import add_lap_features
 from src.segmentation import phase_table
 
@@ -49,6 +49,6 @@ if __name__ == "__main__":
     fastf1.set_log_level("ERROR")
     cfg = load_config()
     session = load_session(cfg)
-    stops = pit_stops(add_lap_features(session.laps, phase_table(session, cfg), cfg), cfg)
+    stops = pit_stops(add_lap_features(fix_timing(session, cfg), phase_table(session, cfg), cfg), cfg)
     print(stops.round(2).to_string())
     print(pit_loss_summary(stops).to_string())

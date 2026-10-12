@@ -29,3 +29,14 @@ pit_loss:
 
 start:
   comparable_grid_max: 8            # inter starters from grid P1..this are "comparable" for the standing-start gap
+
+data_fixes:
+  timing_offset_from_lap: {LEC: 48} # FastF1 has LEC ~19.5 s late from this lap (48 and 51 have no LapTime; his Position drops to P16-19 under the SC). The shift = his timing gap minus the official gap
+
+sim:
+  traffic_penalty_s: null           # time cost per car passed on a green lap. null = measured from the other drivers (pace_model.pass_cost); a number overrides it (0 = PRD default: free passing)
+
+backtest:
+  start_lap: 8                      # the ghost takes over from HAM's real state at the end of this lap; laps 3-8 were slicks on a wet track, which the model can't predict (D-005)
+  check_lap: 42                     # last green lap before the late VSC/SC, which resets the gaps (D-006)
+  tolerance_s: 5.0                  # PRD: the replay must be within +/- this of HAM's real time, at check_lap and at the flag
