@@ -41,3 +41,12 @@ backtest:
   start_lap: 8                      # the ghost takes over from HAM's real state at the end of this lap; laps 3-8 were slicks on a wet track, which the model can't predict (D-005)
   check_lap: 42                     # last green lap before the late VSC/SC, which resets the gaps (D-006)
   tolerance_s: 5.0                  # PRD: the replay must be within +/- this of HAM's real time, at check_lap and at the flag
+
+counterfactual:
+  crossover_lap: 9                  # the ghost pits from inters to slicks at the end of this lap, under the SC with the leaders (D-012); after it, the target's real dry stints
+
+monte_carlo:
+  n: 10000
+  seed: 16                          # fixed, so every number in the README reproduces
+  results_path: outputs/results.json
+  report_laps: {end_of_wet_phase: 8, after_lap9_stop: 10, restart: 12, before_late_sc: 42}   # position distributions saved for these laps

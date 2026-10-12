@@ -1,0 +1,242 @@
+{
+  "question": "Where would HAM have finished had he started on intermediates?",
+  "n": 10000,
+  "seed": 16,
+  "actual_position": 3,
+  "finish": {
+    "distribution": {
+      "1": 0.0001,
+      "2": 0.0027,
+      "3": 0.8847,
+      "4": 0.0579,
+      "5": 0.0199,
+      "6": 0.034,
+      "7": 0.0001,
+      "8": 0.0006
+    },
+    "expected": 3.2,
+    "median": 3.0,
+    "p_win": 0.0001,
+    "p_podium": 0.8875,
+    "expected_gain_vs_actual": -0.2,
+    "gap_to_winner_s": {
+      "p10": 3.71,
+      "median": 5.12,
+      "p90": 7.95
+    }
+  },
+  "actual_strategy": {
+    "distribution": {
+      "2": 0.0006,
+      "3": 0.7932,
+      "4": 0.0913,
+      "5": 0.0374,
+      "6": 0.0728,
+      "7": 0.0018,
+      "8": 0.0022,
+      "9": 0.0007
+    },
+    "expected": 3.406,
+    "gap_to_winner_s": {
+      "p10": 3.85,
+      "median": 5.4,
+      "p90": 9.27
+    }
+  },
+  "paired": {
+    "p_better": 0.1406,
+    "p_same": 0.8535,
+    "p_worse": 0.0059,
+    "expected_places_gained": 0.206,
+    "time_gained_s": {
+      "p10": -0.2,
+      "median": 0.21,
+      "p90": 1.76
+    }
+  },
+  "positions_by_lap": {
+    "end_of_wet_phase": {
+      "lap": 8,
+      "distribution": {
+        "1": 0.4158,
+        "2": 0.0164,
+        "3": 0.2714,
+        "4": 0.2828,
+        "5": 0.012,
+        "6": 0.0014,
+        "7": 0.0002
+      }
+    },
+    "after_lap9_stop": {
+      "lap": 10,
+      "distribution": {
+        "1": 0.4158,
+        "2": 0.0164,
+        "3": 0.2714,
+        "4": 0.2828,
+        "5": 0.012,
+        "6": 0.0014,
+        "7": 0.0002
+      }
+    },
+    "restart": {
+      "lap": 12,
+      "distribution": {
+        "1": 0.4158,
+        "2": 0.0164,
+        "3": 0.2714,
+        "4": 0.2828,
+        "5": 0.012,
+        "6": 0.0014,
+        "7": 0.0002
+      }
+    },
+    "before_late_sc": {
+      "lap": 42,
+      "distribution": {
+        "1": 0.0046,
+        "2": 0.1786,
+        "3": 0.2928,
+        "4": 0.4454,
+        "5": 0.0715,
+        "6": 0.0054,
+        "7": 0.0015,
+        "8": 0.0002
+      }
+    }
+  },
+  "central_run": {
+    "end_of_wet_phase": 3,
+    "after_lap9_stop": 3,
+    "restart": 3,
+    "before_late_sc": 4,
+    "finish": 3,
+    "gap_to_winner_s": 4.891903596353586
+  },
+  "inputs": {
+    "inter_offset_s_per_lap": {
+      "mu": -0.937,
+      "sigma": 0.779
+    },
+    "start_gaps_s": [
+      2.26,
+      0.0,
+      0.87,
+      5.14
+    ],
+    "pass_cost_s": 0.36405740018574206,
+    "dirty_air_s": 0.4882203366275534,
+    "green_pit_loss_median_s": 26.63,
+    "lap_noise_sd_s": {
+      "wet": 0.663,
+      "dry": 0.512
+    },
+    "inters_plan": [
+      [
+        "INTERMEDIATE",
+        0.0,
+        9
+      ],
+      [
+        "SOFT",
+        0.0,
+        31
+      ],
+      [
+        "MEDIUM",
+        3.0,
+        43
+      ],
+      [
+        "SOFT",
+        3.0,
+        55
+      ]
+    ],
+    "actual_plan": [
+      [
+        "SOFT",
+        0.0,
+        31
+      ],
+      [
+        "MEDIUM",
+        3.0,
+        43
+      ],
+      [
+        "SOFT",
+        3.0,
+        55
+      ]
+    ]
+  },
+  "config": {
+    "race": {
+      "year": 2026,
+      "round": 16,
+      "session": "R",
+      "expected_location": "Kuala Lumpur",
+      "first_racing_lap": 3,
+      "leaders_n": 5
+    },
+    "cache_dir": "cache",
+    "drivers": {
+      "target": "HAM",
+      "teammate": "LEC"
+    },
+    "fact_check": {
+      "position_laps": [
+        1,
+        3,
+        4,
+        8,
+        12,
+        13,
+        22,
+        55
+      ],
+      "timing_tolerance_s": 1.0
+    },
+    "pace": {
+      "dry_fit_start_lap": 17,
+      "traffic_gap_s": 1.0,
+      "wet_sc_wear": 0.0,
+      "proxy_weight": 0.5
+    },
+    "pit_loss": {
+      "ref_window": 5
+    },
+    "start": {
+      "comparable_grid_max": 8
+    },
+    "data_fixes": {
+      "timing_offset_from_lap": {
+        "LEC": 48
+      }
+    },
+    "sim": {
+      "pass_cost_s": null,
+      "dirty_air_s": null
+    },
+    "backtest": {
+      "start_lap": 8,
+      "check_lap": 42,
+      "tolerance_s": 5.0
+    },
+    "counterfactual": {
+      "crossover_lap": 9
+    },
+    "monte_carlo": {
+      "n": 10000,
+      "seed": 16,
+      "results_path": "outputs/results.json",
+      "report_laps": {
+        "end_of_wet_phase": 8,
+        "after_lap9_stop": 10,
+        "restart": 12,
+        "before_late_sc": 42
+      }
+    }
+  }
+}
