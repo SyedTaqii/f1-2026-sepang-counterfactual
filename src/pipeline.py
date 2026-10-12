@@ -1,10 +1,10 @@
 """Wires the race data and the M2 models into the simulator: the shared inputs and the back-test (M3).
 `python -m src.pipeline` prints the back-test lap by lap."""
 from src.data_loader import fix_timing, load_session
-from src.pace_model import add_lap_features, dry_lap_time, fit_pace, lap_effects, lap_wear, pass_cost
+from src.pace_model import add_lap_features, dry_lap_time, fit_pace, lap_effects, lap_wear, traffic_costs
 from src.pit_loss import pit_stops
 from src.segmentation import phase_table
-from src.simulator import passes_per_lap, race_from_laps, simulate
+from src.simulator import passes_per_lap, race_from_laps, retiring, simulate
 
 
 def prepare(cfg):
@@ -17,17 +17,21 @@ def prepare(cfg):
     effects = lap_effects(df, fit, cfg)
     stops = pit_stops(df, cfg)
     wear = lap_wear(phases, cfg)
+    field = race_from_laps(df, phases.neutral, wear)
+    incidents = field["times"].index[retiring(field["times"]).any(axis=1)]
     return {"session": session, "phases": phases, "df": df, "fit": fit, "effects": effects,
             "n_laps": int(df.LapNumber.max()),
             "green_loss": stops[(stops.neutral == "green") & (stops.Driver != target)].loss_s,
-            "pass_cost": pass_cost(df, fit, effects, passes_per_lap(race_from_laps(df, phases.neutral, wear)), cfg),
+            "traffic": traffic_costs(df, fit, effects, passes_per_lap(field), incidents, cfg),
             "race": race_from_laps(df[df.Driver != target], phases.neutral, wear)}
 
 
-def traffic_penalty(p, cfg):
-    """sim.traffic_penalty_s if set, else the field-measured cost per pass."""
-    v = cfg["sim"]["traffic_penalty_s"]
-    return p["pass_cost"]["mean"] if v is None else v
+def traffic(p, cfg):
+    """simulate()'s traffic arguments: sim.pass_cost_s / sim.dirty_air_s if set, else the field-measured costs."""
+    s, c = cfg["sim"], p["traffic"]["coef"]
+    return {"pass_cost_s": c["pass"] if s["pass_cost_s"] is None else s["pass_cost_s"],
+            "dirty_air_s": c["dirty"] if s["dirty_air_s"] is None else s["dirty_air_s"],
+            "dirty_gap_s": cfg["pace"]["traffic_gap_s"]}
 
 
 def real_stints(me, start):
@@ -47,7 +51,7 @@ def backtest(p, cfg):
     me = df[df.Driver == cfg["drivers"]["target"]].set_index("LapNumber")
     sim = simulate(p["race"], start, me.Time[start].total_seconds(), real_stints(me, start),
                    dry_lap_time(p["fit"]["coef"], p["effects"], p["n_laps"]), p["green_loss"].median(),
-                   traffic_penalty(p, cfg))
+                   **traffic(p, cfg))
     real = me.loc[sim.index]
     return sim.assign(real_cum_s=real.Time.dt.total_seconds(), real_lap_s=real.lap_s, real_position=real.Position,
                       error_s=lambda s: s.cum_s - s.real_cum_s)

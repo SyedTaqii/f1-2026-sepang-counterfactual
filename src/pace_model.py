@@ -86,22 +86,29 @@ def lap_effects(df, fit, cfg):
     return r.groupby(d.LapNumber[r.index]).median()
 
 
-def pass_cost(df, fit, effects, passes, cfg):
-    """Seconds a car loses per on-track pass: OLS slope of (lap time - fit - lap effect) on the cars it passed that
-    lap, over every green dry lap without a stop, clean air or not. The target is left out, so the back-test
-    checks this number instead of being fitted by it. passes: lap x driver counts (simulator.passes_per_lap)."""
+def traffic_costs(df, fit, effects, passes, incident_laps, cfg):
+    """What traffic costs a car, from the other drivers: OLS of (lap time - fit - lap effect) on
+        pass  = cars it passed that lap (simulator.passes_per_lap: lap x driver counts)
+        dirty = 1 if it ended the lap within traffic_gap_s of the car ahead (dirty air)
+    over every green dry lap without a stop. The two are fitted together: a car stuck behind another loses time on
+    laps with no pass. Laps on which a car's timing stops (incident_laps: a crawl back to retire, yellow flags) are
+    left out: cars there lose 10-30 s to the incident, not to traffic. The target is left out too, so the
+    back-test checks these numbers instead of being fitted by them.
+    Returns coef and cov (pass, dirty) for sampling, and the counts behind them."""
     target = cfg["drivers"]["target"]
     d = df[(df.condition == "dry") & (df.neutral == "green") & df.PitInTime.isna() & df.PitOutTime.isna()
-           & (df.Driver != target)].dropna(subset=["lap_s", "eff_age"])
+           & (df.Driver != target) & ~df.LapNumber.isin(incident_laps)].dropna(subset=["lap_s", "eff_age"])
     r = residuals(d, fit, df.LapNumber.max(), target)
     d = d.loc[r.index]
     y = (r - d.LapNumber.map(effects).fillna(0.0)).to_numpy()
-    x = passes.stack().reindex(pd.MultiIndex.from_arrays([d.LapNumber, d.Driver])).to_numpy(dtype=float)
+    x = pd.DataFrame({"pass": passes.stack().reindex(pd.MultiIndex.from_arrays([d.LapNumber, d.Driver])).to_numpy(float),
+                      "dirty": (d.gap_ahead < cfg["pace"]["traffic_gap_s"]).to_numpy(float)})
     A = np.c_[np.ones(len(x)), x]
     coef, *_ = np.linalg.lstsq(A, y, rcond=None)
     e = y - A @ coef
-    cov = e @ e / (len(y) - 2) * np.linalg.inv(A.T @ A)
-    return {"mean": float(coef[1]), "se": float(np.sqrt(cov[1, 1])), "n_passes": int(x.sum())}
+    cov = e @ e / (len(y) - A.shape[1]) * np.linalg.inv(A.T @ A)
+    return {"coef": pd.Series(coef[1:], x.columns), "cov": pd.DataFrame(cov[1:, 1:], x.columns, x.columns),
+            "n_passes": int(x["pass"].sum()), "n_dirty": int(x.dirty.sum()), "n": len(x)}
 
 
 def dry_lap_time(coef, effects, n_laps):

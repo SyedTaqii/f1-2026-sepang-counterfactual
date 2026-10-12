@@ -30,20 +30,31 @@ def test_green_laps_and_green_stop():
     assert sim.age.tolist() == [1, 2, 3, 1, 2, 3]
 
 
-def test_sc_closes_up_and_vsc_freezes():
-    r = race({"A": [0, 100, 250, 380, 480], "B": [0, 101, 252, 382.5, 483], "C": [0, 102, 254, 385, 486]},
-             ["green", "sc", "vsc", "green"])
-    sim = simulate(r, 0, 0.0, [("SOFT", 0, 4)], lambda lap, c, age: 110.0, pit_loss_s=0.0)
-    # 8 s behind C -> SC: 2 s (the field's median gap at the line that lap) -> VSC: frozen at 2 s
-    assert sim.cum_s.tolist() == pytest.approx([110, 256, 387, 497])
-    assert sim.position.tolist() == [4, 4, 4, 4]
+def test_neutral_laps_copy_the_cars_around_it():
+    r = race({"A": [0, 130, 260], "B": [10, 134, 264], "C": [20, 138, 268]}, ["sc", "vsc"])
+    sim = simulate(r, 0, 15.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)
+    # halfway between B and C on the road: the SC squeezes B-C from 10 to 4 s, the VSC freezes it
+    assert sim.cum_s.tolist() == pytest.approx([136, 266])
+    assert sim.position.tolist() == [3, 3]
 
 
-def test_sc_leader_has_the_car_behind_close_up():
-    r = race({"A": [0, 100, 250], "B": [0, 102, 253]}, ["green", "sc"])
-    sim = simulate(r, 0, 0.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)
-    assert sim.cum_s.tolist() == pytest.approx([90, 247])   # 10 s lead -> 3 s
-    assert sim.position.tolist() == [1, 1]
+def test_neutral_laps_outside_the_field_shrink_like_its_median_gap():
+    r = race({"A": [10, 140, 270], "B": [14, 142, 272], "C": [18, 144, 274]}, ["sc", "sc"])
+    # field gaps 4 -> 2 -> 2 s: a gap to the end car halves on lap 1, then holds
+    lead = simulate(r, 0, 4.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)
+    last = simulate(r, 0, 24.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)
+    assert lead.cum_s.tolist() == pytest.approx([137, 267])
+    assert last.cum_s.tolist() == pytest.approx([147, 277])
+    assert lead.position.tolist() == [1, 1] and last.position.tolist() == [4, 4]
+
+
+def test_neutral_laps_skip_pitting_and_retiring_cars():
+    r = race({"A": [0, 130, 260], "B": [5, 160, 290], "C": [10, 200, None], "D": [20, 138, 268]}, ["sc", "sc"],
+             pit_in=[("B", 1)], pit_out=[("B", 2)])
+    sim = simulate(r, 0, 15.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)
+    # B is pitting and C crawls round to retire, so the ghost copies A and D (3/4 of the way from A to D)
+    assert sim.cum_s.tolist() == pytest.approx([136, 266])
+    assert sim.position.tolist() == [2, 2]
 
 
 def test_stop_under_sc_interpolates_the_stoppers_around_it():
@@ -57,20 +68,37 @@ def test_stop_under_sc_interpolates_the_stoppers_around_it():
     assert sim.position.tolist() == [3, 4, 4]          # lap 2: 259 s is behind A, B (250, 255), ahead of C, D
 
 
-def test_traffic_penalty_per_car_passed():
+def test_pass_cost_per_car_passed():
     r = race({"A": [0, 100], "B": [1, 101]}, ["green"])
-    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.0, pit_loss_s=0.0, traffic_penalty_s=0.3)
+    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.0, pit_loss_s=0.0, pass_cost_s=0.3)
     assert sim.passes.tolist() == [2]
     assert sim.cum_s.tolist() == pytest.approx([99.6])
 
 
 def test_traffic_stuck_behind_a_car_it_cannot_afford_to_pass():
     r = race({"A": [0, 100], "B": [1, 101]}, ["green"])
-    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.8, pit_loss_s=0.0, traffic_penalty_s=0.3)
+    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.8, pit_loss_s=0.0, pass_cost_s=0.3)
     # meets B first: 100.1 < 101, passed. Then A: 100.4 >= 100, stuck behind it (and charged for the attempt)
     assert sim.passes.tolist() == [1]
     assert sim.cum_s.tolist() == pytest.approx([100.4])
     assert sim.position.tolist() == [2]
+
+
+def test_failed_pass_cannot_drop_behind_a_car_passed_that_lap():
+    r = race({"A": [0, 100], "B": [1, 100.4]}, ["green"])
+    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.9, pit_loss_s=0.0, pass_cost_s=0.3)
+    # passes B (100.2 < 100.4), fails on A (100.5 >= 100): stuck behind A but still level with B, not behind it
+    assert sim.passes.tolist() == [1]
+    assert sim.cum_s.tolist() == pytest.approx([100.4])
+    assert sim.position.tolist() == [2]
+
+
+def test_dirty_air_costs_a_lap_ending_close_behind_a_car():
+    r = race({"A": [0, 100]}, ["green"])
+    near = simulate(r, 0, 1.0, [("SOFT", 0, 1)], lambda lap, c, age: 99.5, pit_loss_s=0.0, dirty_air_s=0.4, dirty_gap_s=1.0)
+    clear = simulate(r, 0, 1.0, [("SOFT", 0, 1)], lambda lap, c, age: 100.2, pit_loss_s=0.0, dirty_air_s=0.4, dirty_gap_s=1.0)
+    assert near.cum_s.tolist() == pytest.approx([100.9])    # ends 0.5 s behind A: +0.4 s
+    assert clear.cum_s.tolist() == pytest.approx([101.2])   # ends 1.2 s behind A: clean air
 
 
 @pytest.fixture(scope="module")

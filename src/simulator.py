@@ -12,7 +12,7 @@ def race_from_laps(laps, neutral, wear):
             "pit_out": wide(laps.PitOutTime.notna()).eq(True), "neutral": neutral, "wear": wear}
 
 
-def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, traffic_penalty_s=0.0):
+def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s=0.0, dirty_air_s=0.0, dirty_gap_s=0.0):
     """Run the ghost from the end of `start_lap` (cumulative time `start_s`, same clock as race['times']) to the flag.
 
     race: times (lap x driver cumulative s, NaN = not running), pit_in / pit_out (lap x driver, in-/out-lap),
@@ -20,11 +20,13 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, traffic_pen
     stints: [(compound, age at the end of start_lap or at the stop, last lap)]; the ghost stops after each
           stint's last lap except the final stint's.
     lap_time(lap, compound, age): the ghost's green-lap time.
-    Green lap: lap_time, + pit_loss_s on an in-lap, + traffic (see _traffic).
-    Neutralised lap: see _neutral_lap; a stop on one copies the real stoppers that lap (_stop_under_neutral).
+    Green lap: lap_time, + pit_loss_s on an in-lap, + traffic: pass_cost_s per car caught, dirty_air_s if it ends
+    the lap within dirty_gap_s of a car ahead (see _traffic). The defaults are free passing and no dirty air.
+    Neutralised lap: the ghost copies the real cars around it on the road (_copy): the ones on a normal lap or,
+    when it stops, the ones that stopped that lap (over the in-lap and the out-lap).
     Returns one row per lap: cum_s, lap_s, position, compound, age, passes."""
     T, neutral = race["times"], race["neutral"]
-    busy = race["pit_in"] | race["pit_out"]         # this lap's time includes a stop: not a reference, not a pass
+    busy = _busy(race)
     k, (comp, age, last) = 0, stints[0]
     t, out_lap, rows = start_s, None, []
     for n in range(start_lap + 1, int(T.index.max()) + 1):
@@ -34,12 +36,13 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, traffic_pen
         if out_lap is not None:                       # second half of a stop under SC/VSC, already timed
             t, out_lap = out_lap, None
         elif stop and neutral[n] != "green":
-            t, out_lap = _stop_under_neutral(T, race["pit_in"], n, t)
+            stoppers = race["pit_in"].loc[n] & T.loc[n - 1:n + 1].notna().all()
+            t, out_lap = [_copy(T, stoppers, n, t, m) for m in (n, n + 1)]
         elif neutral[n] == "green":
             t += lap_time(n, comp, age) + (pit_loss_s if stop else 0.0)
-            t, passes = _traffic(prev, now, busy.loc[n], t_prev, t, traffic_penalty_s)
+            t, passes = _traffic(prev, now, busy.loc[n], t_prev, t, pass_cost_s, dirty_air_s, dirty_gap_s)
         else:
-            t = _neutral_lap(prev, now, busy.loc[n], t, neutral[n])
+            t = _copy(T, prev.notna() & now.notna() & ~busy.loc[n], n, t, n)
         rows.append(dict(LapNumber=n, cum_s=t, lap_s=t - t_prev, position=1 + int((now < t).sum()),
                          compound=comp, age=age, passes=passes))
         if stop:
@@ -50,48 +53,60 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, traffic_pen
 
 def passes_per_lap(race):
     """Real on-track passes per lap (index) and driver (columns), counted the same way as the ghost's."""
-    T, busy = race["times"], race["pit_in"] | race["pit_out"]
+    T, busy = race["times"], _busy(race)
     out = pd.DataFrame(0, T.index, T.columns)
     for n in T.index[1:]:
         for d in T.columns:
-            # ahead at the end of the previous lap, behind at the end of this one, not on an in- or out-lap
+            # ahead at the end of the previous lap, behind at the end of this one, on a normal lap (see _busy)
             out.loc[n, d] = int(((T.loc[n - 1] < T.at[n - 1, d]) & (T.loc[n] > T.at[n, d]) & ~busy.loc[n]).sum())
     return out
 
 
-def _traffic(prev, now, busy, t_prev, t, penalty):
-    """Each car the ghost catches this lap (ahead at the end of the last one, behind its free-air time now, not
-    stopping), met in road order, costs `penalty`. Still ahead after paying: a pass. Not: it's stuck behind that
-    car and can't reach the ones further up. Returns the ghost's time and its number of passes."""
+def retiring(times):
+    """Lap x driver: the car's last lap before its times stop (a retirement, often a crawl back, or a lapped car
+    taking the flag)."""
+    r = times.notna() & times.shift(-1).isna()
+    r.iloc[-1] = False
+    return r
+
+
+def _busy(race):
+    """Cars whose lap isn't a normal racing lap: an in- or out-lap, or their last lap. Not a reference on
+    neutralised laps, not a pass."""
+    return race["pit_in"] | race["pit_out"] | retiring(race["times"])
+
+
+def _traffic(prev, now, busy, t_prev, t, pass_s, dirty_s, gap_s):
+    """Each car the ghost catches this lap (ahead at the end of the last one, behind its free-air time now, on a
+    normal lap), met in road order, costs pass_s. Still ahead after paying: a pass. Not: it's stuck behind that car
+    and can't reach the ones further up. Then, ending the lap within gap_s of a car ahead costs dirty_s. Neither
+    cost can drop it behind a car it passed this lap (it would re-pass the same car next lap); it stays level.
+    Returns the ghost's time and its number of passes."""
     caught = (prev < t_prev) & (now > t) & ~busy
-    passes = 0
+    passes, floor = 0, np.inf
     for drv in prev[caught].sort_values(ascending=False).index:
-        t += penalty
+        t += pass_s
         if t >= now[drv]:
             break
         passes += 1
-    return t, passes
+        floor = min(floor, now[drv])
+    ahead = now[(now <= t) & ~busy]
+    if len(ahead) and t - ahead.max() < gap_s:
+        t += dirty_s
+    return min(t, floor), passes
 
 
-def _neutral_lap(prev, now, busy, t_prev, kind):
-    """Follow the nearest car ahead on the road (the nearest behind, when leading), skipping cars on an in- or out-lap.
-    SC: the gap shrinks to at most the field's median gap at the line that lap (the queue forming). VSC: frozen."""
-    ok = prev.notna() & now.notna() & ~busy
-    ahead = prev[ok & (prev < t_prev)]
-    ref = ahead.idxmax() if len(ahead) else prev[ok].idxmin()
-    gap = t_prev - prev[ref]                          # > 0 behind ref, < 0 ahead of it
-    if kind == "sc":   # ponytail: a car far back closes up in one lap, so mid-SC positions are rough; the restart order is what the back-test checks
-        gap = np.sign(gap) * min(abs(gap), np.median(np.diff(np.sort(now.dropna()))))
-    return now[ref] + gap
-
-
-def _stop_under_neutral(T, pit_in, n, t_prev):
-    """In-lap and out-lap end times of a stop on neutralised lap n. What a stop costs then depends on where you
-    were on the road when the SC/VSC came out, so interpolate (by time at the end of lap n-1) between the real
-    cars that stopped that lap; clamp to the nearest one outside their range."""
-    d = pit_in.columns[pit_in.loc[n]]
-    d = d[T.loc[[n - 1, n, n + 1], d].notna().all().to_numpy()]
-    if d.empty:
-        raise ValueError(f"no real car stopped on neutralised lap {n}: nothing to copy")
-    x = T.loc[n - 1, d].sort_values()
-    return tuple(t_prev + np.interp(t_prev, x, T.loc[m, x.index] - x) for m in (n, n + 1))
+def _copy(T, cars, n, t_prev, m):
+    """The ghost's time at the end of lap m if it does what `cars` (a driver mask) did from the end of lap n-1.
+    Between two of them on the road: interpolate their times by its time at the end of lap n-1, so the gaps around
+    it shrink as theirs do under the SC, hold under the VSC, and it never jumps one of them. Ahead of all of them
+    or behind all of them: its gap to the end car shrinks like their median gap (the SC queue forming)."""
+    x = T.loc[n - 1][cars].sort_values()
+    if x.empty:
+        raise ValueError(f"no real car to copy on neutralised lap {n}")
+    y = T.loc[m, x.index]
+    if x.iloc[0] <= t_prev <= x.iloc[-1]:
+        return float(np.interp(t_prev, x, y))
+    end = 0 if t_prev < x.iloc[0] else -1
+    shrink = min(1.0, np.median(np.diff(np.sort(y))) / np.median(np.diff(x))) if len(x) > 1 else 1.0
+    return float(y.iloc[end] + shrink * (t_prev - x.iloc[end]))

@@ -34,7 +34,8 @@ data_fixes:
   timing_offset_from_lap: {LEC: 48} # FastF1 has LEC ~19.5 s late from this lap (48 and 51 have no LapTime; his Position drops to P16-19 under the SC). The shift = his timing gap minus the official gap
 
 sim:
-  traffic_penalty_s: null           # time cost per car passed on a green lap. null = measured from the other drivers (pace_model.pass_cost); a number overrides it (0 = PRD default: free passing)
+  pass_cost_s: null                 # time per car caught on a green lap (passed or not). null = measured from the other drivers (pace_model.traffic_costs); a number overrides it (0 = PRD default: free passing)
+  dirty_air_s: null                 # time lost on a green lap that ends within pace.traffic_gap_s of a car ahead. null = measured with the pass cost; a number overrides it
 
 backtest:
   start_lap: 8                      # the ghost takes over from HAM's real state at the end of this lap; laps 3-8 were slicks on a wet track, which the model can't predict (D-005)
