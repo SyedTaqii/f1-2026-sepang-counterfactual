@@ -1,5 +1,6 @@
 {
   "question": "Where would HAM have finished had he started on intermediates?",
+  "driver": "HAM",
   "n": 10000,
   "seed": 16,
   "actual_position": 3,
@@ -37,6 +38,7 @@
       "9": 0.0007
     },
     "expected": 3.406,
+    "p_podium": 0.7938,
     "gap_to_winner_s": {
       "p10": 3.85,
       "median": 5.4,
@@ -116,7 +118,8 @@
   "inputs": {
     "inter_offset_s_per_lap": {
       "mu": -0.937,
-      "sigma": 0.779
+      "sigma": 0.779,
+      "source": "LEC proxy + dry ratio"
     },
     "start_gaps_s": [
       2.26,
@@ -124,8 +127,8 @@
       0.87,
       5.14
     ],
-    "pass_cost_s": 0.36405740018574206,
-    "dirty_air_s": 0.4882203366275534,
+    "pass_cost_s": 0.364,
+    "dirty_air_s": 0.488,
     "green_pit_loss_median_s": 26.63,
     "lap_noise_sd_s": {
       "wet": 0.663,
@@ -170,6 +173,337 @@
         55
       ]
     ]
+  },
+  "context": {
+    "dry_pace_vs_target_s_per_lap": {
+      "VER": -0.61,
+      "ANT": -0.26,
+      "LEC": 1.07
+    },
+    "crossover_lap_stoppers": 18,
+    "other_cars_running_at_crossover": 20
+  },
+  "backtest": {
+    "driver": "HAM",
+    "position": 3,
+    "real_position": 3,
+    "check_lap": 42,
+    "error_at_check_lap_s": -2.97,
+    "error_at_flag_s": 0.21,
+    "tolerance_s": 5.0
+  },
+  "sensitivity": {
+    "n": 1000,
+    "base_expected": 3.206,
+    "base_gain": 0.183,
+    "bars": [
+      {
+        "label": "Dry pace (s/lap)",
+        "key": "monte_carlo.dry_pace_offset_s",
+        "low": -0.3,
+        "high": 0.3,
+        "expected_low": 2.956,
+        "gain_low": 0.091,
+        "expected_high": 3.873,
+        "gain_high": 0.556,
+        "swing": 0.917
+      },
+      {
+        "label": "Tyre wear on wet/SC laps",
+        "key": "pace.wet_sc_wear",
+        "low": 0.0,
+        "high": 1.0,
+        "expected_low": 3.206,
+        "gain_low": 0.183,
+        "expected_high": 2.938,
+        "gain_high": 0.122,
+        "swing": 0.268
+      },
+      {
+        "label": "Lap he pits for slicks",
+        "key": "counterfactual.crossover_lap",
+        "low": 8,
+        "high": 10,
+        "expected_low": 3.319,
+        "gain_low": 0.07,
+        "expected_high": 3.093,
+        "gain_high": 0.296,
+        "swing": 0.226
+      },
+      {
+        "label": "Dirty air (s/lap)",
+        "key": "sim.dirty_air_s",
+        "low": 0.36,
+        "high": 0.61,
+        "expected_low": 3.151,
+        "gain_low": 0.157,
+        "expected_high": 3.27,
+        "gain_high": 0.22,
+        "swing": 0.119
+      },
+      {
+        "label": "Pass cost (s)",
+        "key": "sim.pass_cost_s",
+        "low": 0.2,
+        "high": 0.53,
+        "expected_low": 3.156,
+        "gain_low": 0.114,
+        "expected_high": 3.265,
+        "gain_high": 0.296,
+        "swing": 0.109
+      },
+      {
+        "label": "Green pit loss (s)",
+        "key": "monte_carlo.fixed.green_pit_loss_s",
+        "low": 24.0,
+        "high": 30.3,
+        "expected_low": 3.14,
+        "gain_low": 0.08,
+        "expected_high": 3.189,
+        "gain_high": 0.232,
+        "swing": 0.049
+      },
+      {
+        "label": "Inter pace vs leaders (s/lap)",
+        "key": "monte_carlo.fixed.inter_offset_s",
+        "low": -1.94,
+        "high": 0.06,
+        "expected_low": 3.192,
+        "gain_low": 0.197,
+        "expected_high": 3.221,
+        "gain_high": 0.168,
+        "swing": 0.029
+      },
+      {
+        "label": "Standing-start gap (s)",
+        "key": "monte_carlo.fixed.start_gap_s",
+        "low": 0.0,
+        "high": 5.14,
+        "expected_low": 3.195,
+        "gain_low": 0.194,
+        "expected_high": 3.22,
+        "gain_high": 0.169,
+        "swing": 0.025
+      },
+      {
+        "label": "Inter method (ratio / LEC proxy)",
+        "key": "pace.proxy_weight",
+        "low": 0.0,
+        "high": 1.0,
+        "expected_low": 3.219,
+        "gain_low": 0.17,
+        "expected_high": 3.198,
+        "gain_high": 0.191,
+        "swing": 0.021
+      }
+    ]
+  },
+  "repeat": {
+    "question": "Where would LEC have finished had he started on intermediates?",
+    "driver": "LEC",
+    "n": 10000,
+    "seed": 16,
+    "actual_position": 4,
+    "finish": {
+      "distribution": {
+        "3": 0.0004,
+        "4": 0.051,
+        "5": 0.0149,
+        "6": 0.7317,
+        "7": 0.0168,
+        "8": 0.0632,
+        "9": 0.1094,
+        "10": 0.006,
+        "11": 0.0019,
+        "12": 0.0034,
+        "13": 0.0013
+      },
+      "expected": 6.416,
+      "median": 6.0,
+      "p_win": 0.0,
+      "p_podium": 0.0004,
+      "expected_gain_vs_actual": -2.416,
+      "gap_to_winner_s": {
+        "p10": 10.09,
+        "median": 11.16,
+        "p90": 14.39
+      }
+    },
+    "actual_strategy": {
+      "distribution": {
+        "4": 0.0001,
+        "5": 0.0005,
+        "6": 0.1117,
+        "7": 0.039,
+        "8": 0.1314,
+        "9": 0.5208,
+        "10": 0.0837,
+        "11": 0.0272,
+        "12": 0.059,
+        "13": 0.0265,
+        "15": 0.0001
+      },
+      "expected": 8.875,
+      "p_podium": 0.0,
+      "gap_to_winner_s": {
+        "p10": 12.44,
+        "median": 14.98,
+        "p90": 18.06
+      }
+    },
+    "paired": {
+      "p_better": 0.8836,
+      "p_same": 0.1158,
+      "p_worse": 0.0006,
+      "expected_places_gained": 2.458,
+      "time_gained_s": {
+        "p10": 1.32,
+        "median": 3.4,
+        "p90": 5.26
+      }
+    },
+    "positions_by_lap": {
+      "end_of_wet_phase": {
+        "lap": 8,
+        "distribution": {
+          "1": 0.1495,
+          "2": 0.0096,
+          "3": 0.3548,
+          "4": 0.4822,
+          "5": 0.0037,
+          "6": 0.0002
+        }
+      },
+      "after_lap9_stop": {
+        "lap": 10,
+        "distribution": {
+          "1": 0.1495,
+          "2": 0.0096,
+          "3": 0.3548,
+          "4": 0.4822,
+          "5": 0.0037,
+          "6": 0.0002
+        }
+      },
+      "restart": {
+        "lap": 12,
+        "distribution": {
+          "1": 0.1495,
+          "2": 0.0096,
+          "3": 0.3548,
+          "4": 0.4822,
+          "5": 0.0037,
+          "6": 0.0002
+        }
+      },
+      "before_late_sc": {
+        "lap": 42,
+        "distribution": {
+          "2": 0.001,
+          "3": 0.0074,
+          "4": 0.3097,
+          "5": 0.0012,
+          "6": 0.6253,
+          "7": 0.0211,
+          "8": 0.0123,
+          "9": 0.0142,
+          "10": 0.0043,
+          "11": 0.0027,
+          "12": 0.0008
+        }
+      }
+    },
+    "central_run": {
+      "end_of_wet_phase": 3,
+      "after_lap9_stop": 3,
+      "restart": 3,
+      "before_late_sc": 6,
+      "finish": 6,
+      "gap_to_winner_s": 10.654456439711794
+    },
+    "inputs": {
+      "inter_offset_s_per_lap": {
+        "mu": -0.573,
+        "sigma": 0.331,
+        "source": "own inter laps"
+      },
+      "start_gaps_s": [
+        2.26,
+        0.0,
+        0.87,
+        5.14
+      ],
+      "pass_cost_s": 0.597,
+      "dirty_air_s": 0.537,
+      "green_pit_loss_median_s": 26.63,
+      "lap_noise_sd_s": {
+        "wet": 0.663,
+        "dry": 0.623
+      },
+      "inters_plan": [
+        [
+          "INTERMEDIATE",
+          0.0,
+          9
+        ],
+        [
+          "SOFT",
+          0.0,
+          28
+        ],
+        [
+          "UNKNOWN",
+          3.0,
+          43
+        ],
+        [
+          "SOFT",
+          3.0,
+          55
+        ]
+      ],
+      "actual_plan": [
+        [
+          "INTERMEDIATE",
+          0.0,
+          9
+        ],
+        [
+          "SOFT",
+          0.0,
+          28
+        ],
+        [
+          "UNKNOWN",
+          3.0,
+          43
+        ],
+        [
+          "SOFT",
+          3.0,
+          55
+        ]
+      ]
+    },
+    "context": {
+      "dry_pace_vs_target_s_per_lap": {
+        "VER": -1.68,
+        "ANT": -1.34,
+        "HAM": -1.07,
+        "HAD": -0.69
+      },
+      "crossover_lap_stoppers": 17,
+      "other_cars_running_at_crossover": 20
+    },
+    "backtest": {
+      "driver": "LEC",
+      "position": 9,
+      "real_position": 4,
+      "check_lap": 42,
+      "error_at_check_lap_s": 8.37,
+      "error_at_flag_s": 7.9,
+      "tolerance_s": 5.0
+    }
   },
   "config": {
     "race": {
@@ -236,7 +570,75 @@
         "after_lap9_stop": 10,
         "restart": 12,
         "before_late_sc": 42
-      }
+      },
+      "fixed": {
+        "inter_offset_s": null,
+        "start_gap_s": null,
+        "green_pit_loss_s": null
+      },
+      "dry_pace_offset_s": 0.0
+    },
+    "sensitivity": {
+      "n": 1000,
+      "tornado": [
+        {
+          "key": "monte_carlo.fixed.inter_offset_s",
+          "low": -1.94,
+          "high": 0.06,
+          "label": "Inter pace vs leaders (s/lap)"
+        },
+        {
+          "key": "monte_carlo.dry_pace_offset_s",
+          "low": -0.3,
+          "high": 0.3,
+          "label": "Dry pace (s/lap)"
+        },
+        {
+          "key": "monte_carlo.fixed.start_gap_s",
+          "low": 0.0,
+          "high": 5.14,
+          "label": "Standing-start gap (s)"
+        },
+        {
+          "key": "monte_carlo.fixed.green_pit_loss_s",
+          "low": 24.0,
+          "high": 30.3,
+          "label": "Green pit loss (s)"
+        },
+        {
+          "key": "sim.pass_cost_s",
+          "low": 0.2,
+          "high": 0.53,
+          "label": "Pass cost (s)"
+        },
+        {
+          "key": "sim.dirty_air_s",
+          "low": 0.36,
+          "high": 0.61,
+          "label": "Dirty air (s/lap)"
+        },
+        {
+          "key": "pace.proxy_weight",
+          "low": 0.0,
+          "high": 1.0,
+          "label": "Inter method (ratio / LEC proxy)"
+        },
+        {
+          "key": "counterfactual.crossover_lap",
+          "low": 8,
+          "high": 10,
+          "label": "Lap he pits for slicks"
+        },
+        {
+          "key": "pace.wet_sc_wear",
+          "low": 0.0,
+          "high": 1.0,
+          "label": "Tyre wear on wet/SC laps"
+        }
+      ]
+    },
+    "repeat": {
+      "driver": "LEC"
     }
   }
 }

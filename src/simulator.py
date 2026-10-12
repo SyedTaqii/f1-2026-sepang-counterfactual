@@ -8,8 +8,10 @@ def race_from_laps(laps, neutral, wear):
     """The real field in simulator form, from FastF1-style laps (Driver, LapNumber, Time, PitInTime, PitOutTime).
     neutral: per lap 'green' | 'sc' | 'vsc'. wear: per-lap tyre-age increment."""
     wide = lambda values: laps.assign(v=values).pivot(index="LapNumber", columns="Driver", values="v")
-    return {"times": wide(laps.Time.dt.total_seconds()), "pit_in": wide(laps.PitInTime.notna()).eq(True),
+    race = {"times": wide(laps.Time.dt.total_seconds()), "pit_in": wide(laps.PitInTime.notna()).eq(True),
             "pit_out": wide(laps.PitOutTime.notna()).eq(True), "neutral": neutral, "wear": wear}
+    race["busy"] = _busy(race)                       # cached: simulate() runs thousands of times on one race
+    return race
 
 
 def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s=0.0, dirty_air_s=0.0, dirty_gap_s=0.0):
@@ -26,7 +28,8 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
     when it stops, the ones that stopped that lap (over the in-lap and the out-lap).
     Returns one row per lap: cum_s, lap_s, position, compound, age, passes."""
     laps = race["times"].index                       # consecutive lap numbers; numpy inside for speed (M4: 10k runs)
-    T, pit_in, busy = race["times"].to_numpy(float), race["pit_in"].to_numpy(), _busy(race).to_numpy()
+    T, pit_in = race["times"].to_numpy(float), race["pit_in"].to_numpy()
+    busy = (race["busy"] if "busy" in race else _busy(race)).to_numpy()
     neutral, wear = race["neutral"].reindex(laps).to_numpy(), race["wear"].reindex(laps).to_numpy(float)
     k, (comp, age, last) = 0, stints[0]
     t, out_lap, rows = start_s, None, []

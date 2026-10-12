@@ -125,6 +125,8 @@ def inter_pace(df, cfg):
     """The target's inter pace as an offset (s/lap) to `ref`, the leaders' median clean inter lap on each wet lap.
     `ref` moves lap by lap with the drying track; the offset is assumed constant.
 
+    If the target ran clean inter laps himself, those give the offset directly (mean and its standard error).
+    Otherwise (HAM here) it's estimated two ways:
     proxy: the teammate's clean inter laps minus ref, plus the target-teammate gap on clean dry laps.
     ratio: the target's dry gap to the leaders, scaled up by the wet/dry lap-length ratio.
     The two disagree for real reasons, so sigma = sqrt(mean within-method variance + (half the disagreement)^2)."""
@@ -132,6 +134,10 @@ def inter_pace(df, cfg):
     leaders = inter_leaders(df, cfg["race"]["first_racing_lap"], cfg["race"]["leaders_n"])
     wet = df[df.clean & (df.condition == "wet") & (df.Compound == "INTERMEDIATE")]
     ref = wet[wet.Driver.isin(leaders)].groupby("LapNumber").lap_s.median()
+    own = (wet[wet.Driver == target].set_index("LapNumber").lap_s - ref).dropna()
+    if len(own):
+        return {"ref": ref, "leaders": leaders, "own_laps": own, "mu": float(own.mean()),
+                "sigma": float(own.std() / np.sqrt(len(own))), "lap_sd": float(own.std())}
     field = fit_pace(df, cfg)
 
     diffs = (wet[wet.Driver == mate].set_index("LapNumber").lap_s - ref).dropna()

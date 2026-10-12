@@ -39,7 +39,8 @@ def real_stints(me, start):
     out = []
     for _, s in me.loc[start:].groupby("Stint"):
         age = s.eff_age.iloc[0] if s.index[0] == start else s.TyreLife.iloc[0] - 1
-        out.append((s.Compound.iloc[0], float(age), int(s.index[-1])))
+        comp = {"None": "UNKNOWN"}.get(s.Compound.iloc[0], s.Compound.iloc[0])   # as pace_model.design names it
+        out.append((comp, float(age), int(s.index[-1])))
     return out
 
 
