@@ -1,5 +1,7 @@
 # What if Hamilton had started on inters?
 
+**▶ [Watch the race replay](https://syedtaqii.github.io/f1-2026-sepang-counterfactual/)**: every car on its real GPS trace, with the model's ghost Hamilton on inters racing his real race.
+
 **A data-driven counterfactual of the 2026 Bahrain Grand Prix (Round 16, held at Sepang).** Ferrari started both cars on slicks on a wet track. Hamilton dropped from P2 on the grid to P17 by lap 4, and was 83 s behind the leader after lap 8. He still finished P3.
 
 The question: **where would he most likely have finished had he started on intermediates?**
