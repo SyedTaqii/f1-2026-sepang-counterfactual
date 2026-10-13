@@ -6,12 +6,20 @@
 
 The question: **where would he most likely have finished had he started on intermediates?**
 
+## Findings
+
+- **P3 either way, but a far safer P3.** Starting on inters, he finishes P3 in 90.9% of simulated races, against 57.1% for the slicks strategy he actually ran (expected P3.17 vs P4.02).
+- **The safety car, not the tyre, decided his result.** Slicks left him 83 s behind after the wet laps; the lap-9 safety car gave almost all of it back. His inter pace barely matters (0.06 places); his dry pace matters most (1.09).
+- **How far to trust it.** These are model probabilities, given the other cars' real races: nobody reacts to the ghost. The back-test reproduces his real P3 at the flag but misses the lap-42 check by 0.09 s, and his late-race pace rests on 3 clean laps per stint.
+
 ## The answer: P3 again, but a far safer P3
 
 | 10,000 Monte Carlo draws, seed 16 | Expected finish | P3 | Podium | Win | Gap to winner (median) |
 |---|---|---|---|---|---|
 | **Started on inters** | **P3.17** | 90.9% | 92.0% | 0.02% | 4.16 s |
 | Actual strategy (slicks), same draws | P4.02 | 57.1% | 57.4% | 0.01% | 6.11 s |
+
+*Model probabilities: the other cars run their real races and don't react to the ghost (see Caveats).*
 
 Each draw races both strategies with the same sampled pace, traffic, pit-stop and noise inputs, so the comparison is like for like. Draw by draw, inters give:
 - **the same position in 60.1%** of draws;
@@ -114,7 +122,7 @@ Leclerc ran inters himself (laps 4–9, after a lap-3 collision and pit stop), s
 py -3.13 -m venv .venv; .venv\Scripts\activate; pip install -r requirements.txt
 python -m src.monte_carlo     # 10k paired draws + tornado + Leclerc repeat -> outputs/results.json (~10 min)
 python -m src.plots           # the 4 charts -> outputs/*.png
-pytest                        # simulator mechanics, back-test, Monte Carlo, README numbers
+pytest                        # simulator mechanics, back-test, Monte Carlo, README numbers (the first run downloads FastF1 data)
 ```
 
 The notebook `notebooks/sepang_counterfactual.ipynb` runs everything end to end, with the reasoning for each step. Every model number in this README comes from `outputs/results.json`, and a test checks that; the earlier version's numbers are in its commit. The race facts come from `python -m src.data_loader`. Every assumption is in `config.yaml`.
