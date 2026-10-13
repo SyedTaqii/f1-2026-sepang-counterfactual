@@ -30,6 +30,14 @@ def test_green_laps_and_green_stop():
     assert sim.age.tolist() == [1, 2, 3, 1, 2, 3]
 
 
+def test_green_stop_loss_splits_between_in_lap_and_out_lap():
+    r = race({"A": [0, 100, 200, 300, 400, 500, 600], "B": [0, 101, 202, 303, 404, 505, 606]}, ["green"] * 6)
+    sim = simulate(r, 0, 0.0, [("SOFT", 0, 3), ("MEDIUM", 0, 6)], lambda lap, c, age: 100.5, pit_loss_s=20.0,
+                   pit_in_share=0.25)
+    assert sim.cum_s.tolist() == pytest.approx([100.5, 201, 306.5, 422, 522.5, 623])   # +5 s on the in-lap, +15 s out
+    assert sim.position.tolist() == [2, 2, 3, 3, 3, 3]
+
+
 def test_neutral_laps_copy_the_cars_around_it():
     r = race({"A": [0, 130, 260], "B": [10, 134, 264], "C": [20, 138, 268]}, ["sc", "vsc"])
     sim = simulate(r, 0, 15.0, [("SOFT", 0, 2)], lambda lap, c, age: 90.0, pit_loss_s=0.0)

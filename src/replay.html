@@ -1,0 +1,505 @@
+<title>Sepang Ghost Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;600&family=Saira+Condensed:wght@600;700&family=Saira:wght@400;500;600&display=swap">
+<style>
+/* Layout: a race-broadcast frame. Circuit canvas on the left, timing tower on the right, transport bar below;
+   everything stacks to one column on a phone. One deliberate dark world (wet asphalt), so no light theme. */
+:root {
+  color-scheme: dark;
+  --asphalt: #0d1517;     /* page ground */
+  --panel: #131f22;       /* tower and transport surfaces */
+  --line: #22343a;        /* hairlines */
+  --kerb: #2c4248;        /* track ribbon */
+  --ink: #e9f0ee;
+  --ink-2: #a7b9b6;
+  --muted: #6f8783;
+  --field: #8aa09c;       /* every car that isn't Hamilton */
+  --ghost: #3987e5;       /* the model: started on inters (same blue as the README charts) */
+  --real: #d95926;        /* his real race (same orange) */
+  --sc: #fab219;          /* safety-car yellow (status, not an accent) */
+  --green: #0ca30c;
+  --soft: #e5352b; --medium: #f0c330; --hard: #ecece6; --inter: #38b55a; --wet: #2f86d6;
+  --display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Saira", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Azeret Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--asphalt); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 40px; }
+.frame { max-width: 1240px; margin-inline: auto; display: grid; gap: 18px; }
+
+.masthead { display: grid; gap: 6px; }
+.eyebrow { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(30px, 4.6vw, 52px); line-height: 1.02; letter-spacing: .005em; text-wrap: balance; }
+.lede { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.key { font-weight: 600; white-space: nowrap; }
+.key::before { content: ""; display: inline-block; width: .62em; height: .62em; border-radius: 50%; margin-right: .35em; vertical-align: .05em; background: currentColor; }
+.key.ghost { color: var(--ghost); }
+.key.real { color: var(--real); }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.track-wrap { position: relative; min-width: 0; background: radial-gradient(120% 90% at 50% 45%, #12201f 0%, var(--asphalt) 70%); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+canvas { display: block; width: 100%; touch-action: none; }
+.overlay { position: absolute; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+.overlay.top { top: 12px; left: 12px; right: 12px; }
+.overlay.bottom { left: 12px; right: 12px; bottom: 12px; }
+.pill { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 9px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+.pill.flag-green { color: var(--green); }
+.pill.flag-sc { background: var(--sc); color: #1b1503; border-color: var(--sc); }
+.pill.flag-vsc { color: var(--sc); border-color: var(--sc); }
+.pill.wet { color: var(--wet); border-color: color-mix(in srgb, var(--wet) 55%, var(--line)); }
+.versus { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); font-size: 14px; }
+.versus b { font-family: var(--mono); font-weight: 600; }
+.versus .g { color: var(--ghost); } .versus .r { color: var(--real); } .versus .d { color: var(--ink-2); }
+.tip { position: absolute; pointer-events: none; padding: 5px 8px; border-radius: 5px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+
+.tower { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tower-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px 8px; border-bottom: 1px solid var(--line); }
+.tower-head h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+.tower-head span { font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.rows { list-style: none; margin: 0; padding: 4px 0; }
+.row { display: grid; grid-template-columns: 26px 4px 1fr 20px 64px; align-items: center; gap: 8px; padding: 2px 12px; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.row .pos { font-family: var(--mono); font-weight: 600; text-align: right; color: var(--ink-2); }
+.row .bar { width: 4px; height: 14px; border-radius: 2px; background: var(--line); }
+.row .who { font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: .03em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .who small { font-family: var(--body); font-weight: 500; font-size: 11px; letter-spacing: 0; color: var(--ink-2); margin-left: 4px; }
+.row .tyre { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--field); display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; }
+.row .gap { font-family: var(--mono); font-size: 12px; text-align: right; color: var(--ink-2); }
+.row.ghost { background: color-mix(in srgb, var(--ghost) 16%, transparent); }
+.row.ghost .bar { background: var(--ghost); } .row.ghost .pos { color: var(--ghost); }
+.row.real { background: color-mix(in srgb, var(--real) 16%, transparent); }
+.row.real .bar { background: var(--real); } .row.real .pos { color: var(--real); }
+.row.out { opacity: .45; }
+.badge { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 1px 4px; border-radius: 3px; border: 1px solid var(--ink-2); color: var(--ink); }
+
+.transport { display: grid; gap: 12px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.transport-main { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--ghost); outline-offset: 2px; }
+#play { min-width: 92px; padding: 7px 14px; border-radius: 6px; border: 0; background: var(--ink); color: var(--asphalt); font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .05em; text-transform: uppercase; }
+#scrub { flex: 1 1 240px; min-width: 0; accent-color: var(--ghost); }
+#clock { font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { padding: 5px 10px; border: 0; background: transparent; font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+.moments { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.moments span { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.moments button { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 13px; color: var(--ink-2); }
+.moments button:hover { color: var(--ink); border-color: var(--muted); }
+
+.laps { display: grid; gap: 10px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.laps-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.laps-head h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+#lapRead { margin: 0; flex: 1 1 300px; min-width: 0; font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+#lapRead .g, .lap-table .g { color: var(--ghost); }
+#lapRead .r, .lap-table .r { color: var(--real); }
+.laps-key { display: flex; gap: 14px; font-size: 13px; }
+.laps-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 14px; align-items: start; }
+.laps-wrap { position: relative; min-width: 0; }
+#lapsChart { display: block; width: 100%; height: 400px; touch-action: none; }
+.lap-table { max-height: 400px; overflow-y: auto; min-width: 0; border: 1px solid var(--line); border-radius: 8px; }
+.lap-table table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lap-table th { position: sticky; top: 0; z-index: 1; padding: 7px 8px; background: var(--panel); border-bottom: 1px solid var(--line); text-align: right; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.lap-table td { padding: 3px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); text-align: right; white-space: nowrap; }
+.lap-table th:first-child, .lap-table td:first-child { text-align: left; }
+.lap-table tbody tr { cursor: pointer; }
+.lap-table tbody tr:hover td { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.lap-table tr.now td { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.lap-table .up { color: var(--ghost); }
+.lap-table .down { color: var(--real); }
+.lap-table .na { color: var(--muted); }
+.tag { display: inline-block; margin-left: 5px; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; font-size: 10px; line-height: 15px; color: var(--muted); }
+.tag.sc { background: var(--sc); border-color: var(--sc); color: #1b1503; }
+.tag.vsc { border-color: var(--sc); color: var(--sc); }
+.tag.wet { border-color: color-mix(in srgb, var(--wet) 55%, var(--line)); color: var(--wet); }
+.tag.pit { border-color: var(--ink-2); color: var(--ink); }
+.laps-note { margin: 0; max-width: 100ch; font-size: 12px; color: var(--muted); }
+@media (max-width: 860px) {
+  .laps-body { grid-template-columns: minmax(0, 1fr); }
+  #lapsChart { height: 300px; }
+  .lap-table { max-height: 340px; }
+}
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px; padding-top: 6px; }
+.notes h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
+.notes p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+.notes b { color: var(--ink); font-weight: 600; }
+.figure { font-family: var(--mono); color: var(--ink); }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<main class="frame">
+  <header class="masthead">
+    <p class="eyebrow">2026 Bahrain Grand Prix · held at Sepang · 5.54 km · 55 laps</p>
+    <h1>What if Hamilton had started on inters?</h1>
+    <p class="lede">Every car runs on its real GPS trace. Alongside them drives the model's answer:
+      <span class="key ghost">the ghost</span>, Hamilton as if he had started on inters, against <span class="key real">the real Hamilton</span> on slicks.</p>
+  </header>
+
+  <section class="stage">
+    <div class="track-wrap" id="wrap">
+      <canvas id="track" role="img" aria-label="Sepang circuit with every car's position"></canvas>
+      <div class="overlay top"><span class="pill" id="lapPill">Lap –</span><span class="pill" id="flagPill">Green</span><span class="pill wet" id="wetPill">Wet track</span></div>
+      <div class="overlay bottom"><div class="versus" id="versus"></div></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <aside class="tower" aria-label="Timing tower">
+      <div class="tower-head"><h2>Timing</h2><span id="towerLap">Lap –/55</span></div>
+      <ol class="rows" id="rows"></ol>
+    </aside>
+  </section>
+
+  <section class="transport" aria-label="Playback">
+    <div class="transport-main">
+      <button id="play" type="button">Play</button>
+      <input id="scrub" type="range" min="0" step="1" aria-label="Race time">
+      <span id="clock">0:00:00</span>
+      <div class="seg" role="group" aria-label="Playback speed" id="speeds"></div>
+    </div>
+    <div class="moments" id="moments"><span>Jump to</span></div>
+  </section>
+
+  <section class="laps" aria-label="Lap times of both Hamiltons">
+    <div class="laps-head">
+      <h2>Lap times</h2>
+      <p id="lapRead"></p>
+      <div class="laps-key"><span class="key ghost">Ghost</span><span class="key real">Real</span></div>
+      <div class="seg" role="group" aria-label="Chart scale" id="lapScale"></div>
+    </div>
+    <div class="laps-body">
+      <div class="laps-wrap" id="lapsWrap">
+        <canvas id="lapsChart" role="img" aria-label="Lap time on every lap, the ghost against the real Hamilton"></canvas>
+        <div class="tip" id="lapTip" hidden></div>
+      </div>
+      <div class="lap-table" id="lapTable">
+        <table>
+          <thead><tr><th scope="col">Lap</th><th scope="col" class="g">Ghost</th><th scope="col" class="r">Real</th><th scope="col">Δ lap</th><th scope="col">Gap</th></tr></thead>
+          <tbody id="lapRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <p class="laps-note" id="lapsNote"></p>
+  </section>
+
+  <section class="notes">
+    <div>
+      <h3>What you're watching</h3>
+      <p>The grey cars and <b>the orange Hamilton</b> are the real race, replayed from FastF1 position data.
+        <b>The blue Hamilton, the ghost,</b> is the model's central run: inters at the start, a pit stop for slicks under the lap-9 safety car,
+        then his own real dry strategy. It only has lap times, so on each lap it follows the line of a real car that ran the same kind of lap.</p>
+    </div>
+    <div>
+      <h3>The model's answer</h3>
+      <p id="answer"></p>
+    </div>
+    <div>
+      <h3>Read with care</h3>
+      <p>The other cars don't react to the ghost, and they pass it for free. Positions within a lap are borrowed,
+        so the ghost's lap-end times are the model and the rest is illustration.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const DATA = /*__REPLAY_DATA__*/null;
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const C = { ghost: tok("--ghost"), real: tok("--real"), field: tok("--field"), asphalt: tok("--asphalt"), kerb: tok("--kerb"),
+              line: tok("--line"), ink: tok("--ink"), ink2: tok("--ink-2"), muted: tok("--muted") };
+  const TYRE = { SOFT: ["S", "--soft"], MEDIUM: ["M", "--medium"], HARD: ["H", "--hard"], INTERMEDIATE: ["I", "--inter"], WET: ["W", "--wet"], UNKNOWN: ["?", "--field"] };
+  const TYRE_NAME = { SOFT: "Soft", MEDIUM: "Medium", HARD: "Hard", INTERMEDIATE: "Inter", WET: "Wet", UNKNOWN: "Unknown" };
+
+  const decode = (b64) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Int16Array(u.buffer); };
+  const cars = DATA.cars.map((c) => {
+    const ends = c.ends.map((v) => (v === null ? null : v));
+    const last = Math.max(...ends.filter((v) => v !== null));
+    return { ...c, x: decode(c.x), y: decode(c.y), ends, last, id: c.kind === "ghost" ? "ghost" : c.code };
+  });
+  const ghost = cars.find((c) => c.kind === "ghost"), real = cars.find((c) => c.kind === "real");
+  const N = DATA.laps, hz = DATA.hz, duration = (DATA.n - 1) / hz;
+  const lead = Array.from({ length: N }, (_, n) => Math.min(...cars.filter((c) => c.kind !== "ghost" && c.ends[n] !== null).map((c) => c.ends[n])));
+  const lapStart = (lap) => (lap <= 1 ? 0 : lead[lap - 2]);
+
+  // ---- geometry: fit the circuit (and pit lane) to the canvas, Y up
+  const pts = DATA.track.concat(DATA.pit);
+  const minX = Math.min(...pts.map((p) => p[0])), maxX = Math.max(...pts.map((p) => p[0]));
+  const minY = Math.min(...pts.map((p) => p[1])), maxY = Math.max(...pts.map((p) => p[1]));
+  const canvas = $("track"), ctx = canvas.getContext("2d"), wrap = $("wrap");
+  let W = 0, H = 0, k = 1, ox = 0, oy = 0, dpr = 1, base = null;
+  const X = (x) => ox + (x - minX) * k, Y = (y) => oy + (maxY - y) * k;
+
+  function layout() {
+    dpr = window.devicePixelRatio || 1;
+    W = wrap.clientWidth;
+    const aspect = (maxY - minY) / (maxX - minX);
+    H = Math.round(Math.min(Math.max(W * aspect, 320), 640));
+    const pad = Math.max(28, W * 0.05);
+    k = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad - 40) / (maxY - minY));
+    ox = (W - (maxX - minX) * k) / 2; oy = (H - (maxY - minY) * k) / 2 + 8;
+    canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px";
+    base = document.createElement("canvas"); base.width = canvas.width; base.height = canvas.height;
+    const b = base.getContext("2d"); b.scale(dpr, dpr); b.lineJoin = b.lineCap = "round";
+    const path = (list, close) => { b.beginPath(); list.forEach((p, i) => (i ? b.lineTo(X(p[0]), Y(p[1])) : b.moveTo(X(p[0]), Y(p[1])))); if (close) b.closePath(); };
+    path(DATA.pit, false); b.setLineDash([3, 4]); b.strokeStyle = C.kerb; b.lineWidth = 3; b.stroke(); b.setLineDash([]);
+    path(DATA.track, true); b.strokeStyle = C.kerb; b.lineWidth = Math.max(9, k * 140); b.stroke();
+    path(DATA.track, true); b.strokeStyle = C.line; b.lineWidth = 1; b.stroke();
+    const [sx, sy] = DATA.sf; b.fillStyle = C.ink; b.fillRect(X(sx) - 2, Y(sy) - 9, 4, 18);
+    b.font = "600 11px " + tok("--mono"); b.fillStyle = C.muted; b.fillText("START / FINISH", X(sx) + 8, Y(sy) + 4);
+  }
+
+  // ---- race state at time t (seconds from the start)
+  const at = (c, t) => { const f = Math.min(Math.max(t * hz, 0), DATA.n - 1), i = Math.floor(f), j = Math.min(i + 1, DATA.n - 1), u = f - i;
+    return [c.x[i] + (c.x[j] - c.x[i]) * u, c.y[i] + (c.y[j] - c.y[i]) * u]; };
+  const visible = (c, t) => t >= 0 && t <= c.last + 4;
+  function progress(c, t) {
+    let done = 0; while (done < N && c.ends[done] !== null && c.ends[done] <= t) done++;
+    if (done === N || c.ends[done] === null) return done + 0.5 / (1 + c.last / 1e4);   // finished: earlier is higher
+    const prev = done ? c.ends[done - 1] : 0;
+    return done + (t - prev) / (c.ends[done] - prev);
+  }
+  const inPit = (c, t) => c.pits.some(([a, b]) => t >= a && t <= b);
+  const lapAt = (t) => Math.min(lead.filter((v) => v <= t).length + 1, N);
+  const fmt = (s) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.floor(s % 60); return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`; };
+
+  function standings(t) {
+    // like a timing tower: more laps done first, then whoever crossed the line earlier (before lap 1: how far round)
+    const key = new Map(cars.map((c) => {
+      let done = 0; while (done < N && c.ends[done] !== null && c.ends[done] <= t) done++;
+      return [c.id, { done, last: done ? c.ends[done - 1] : 0, prog: progress(c, t) }];
+    }));
+    const ahead = (a, b) => { const x = key.get(a.id), y = key.get(b.id);
+      return y.done - x.done || (x.done ? x.last - y.last : y.prog - x.prog); };
+    const realOrder = cars.filter((c) => c.kind !== "ghost").sort(ahead);
+    const pos = new Map(realOrder.map((c, i) => [c.id, i + 1]));
+    pos.set("ghost", 1 + realOrder.filter((c) => c.kind === "field" && ahead(c, ghost) < 0).length);
+    const order = cars.slice().sort((a, b) => (a.out && t > a.last) - (b.out && t > b.last) || ahead(a, b));
+    return { pos, order };
+  }
+  function gapText(c, t) {
+    if (c.out && t > c.last) return '<span class="badge">OUT</span>';
+    if (inPit(c, t)) return '<span class="badge">PIT</span>';
+    let L = 0; while (L < N && c.ends[L] !== null && c.ends[L] <= t) L++;
+    if (!L) return "–";
+    const best = Math.min(...cars.filter((d) => d.ends[L - 1] !== null).map((d) => d.ends[L - 1]));
+    const g = c.ends[L - 1] - best;
+    return g < 0.05 ? (L >= N ? "WIN" : "LEAD") : "+" + g.toFixed(1);
+  }
+
+  // ---- drawing
+  // ---- lap times of the two Hamiltons, from their lap-end times
+  const lapTimes = (c) => c.ends.map((e, i) => (e === null || (i && c.ends[i - 1] === null) ? null : e - (i ? c.ends[i - 1] : 0)));
+  const pitLaps = (c) => c.ends.map((e, i) => e !== null && c.pits.some(([a]) => a <= e && a > (i ? (c.ends[i - 1] ?? e) : 0)));
+  const LT = { ghost: lapTimes(ghost), real: lapTimes(real) }, PIT = { ghost: pitLaps(ghost), real: pitLaps(real) };
+  const FIRST = DATA.first_lap;                    // laps before it: the SC laps of the aborted start, the same for both
+  const charted = ["ghost", "real"].flatMap((k) => LT[k].slice(FIRST - 1)).filter((v) => v !== null);
+  const floorLap = Math.floor(Math.min(...charted)) - 1;
+  const SCALES = { all: [floorLap, Math.ceil(Math.max(...charted)) + 2], racing: [floorLap, floorLap + 16] };
+  let scale = "all";
+  const lc = $("lapsChart"), lctx = lc.getContext("2d"), LP = { l: 50, r: 12, t: 10, b: 26 };
+  const secs = (v) => (v === null ? "–" : v.toFixed(2));
+  const signed = (v, d = 2) => (v === null ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(d));
+  const tagFor = (n) => { const k = DATA.neutral[n - 1];
+    return k === "sc" ? '<span class="tag sc">SC</span>' : k === "vsc" ? '<span class="tag vsc">VSC</span>' : DATA.wet[n - 1] ? '<span class="tag wet">wet</span>' : ""; };
+  function lapNote() {
+    $("lapsNote").textContent = (scale === "all"
+      ? `Every lap from the standing start (lap ${FIRST}); laps 1–${FIRST - 1}, behind the safety car before the start, are the same for both and are in the table. `
+      : `Zoomed to racing pace (${SCALES.racing[0]}–${SCALES.racing[1]} s): slower laps (safety car, pit stops, slicks on a wet track) run off the top. `) +
+      "In the table, Δ lap and Gap read + when the ghost is quicker or ahead. Click a row to jump there.";
+  }
+  function drawLaps(cur) {
+    const w = lc.clientWidth, h = lc.clientHeight;
+    if (lc.width !== Math.round(w * dpr) || lc.height !== Math.round(h * dpr)) { lc.width = Math.round(w * dpr); lc.height = Math.round(h * dpr); }
+    const [lo, hi] = SCALES[scale], bottom = h - LP.b, slot = (w - LP.l - LP.r) / (N - FIRST + 1);
+    const lx = (lap) => LP.l + (lap - FIRST + 0.5) * slot, ly = (v) => LP.t + (hi - v) / (hi - lo) * (bottom - LP.t);
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0); lctx.clearRect(0, 0, w, h);
+    for (let n = FIRST; n <= N; n++) {                              // SC, VSC and wet laps
+      const kind = DATA.neutral[n - 1];
+      if (kind === "green" && !DATA.wet[n - 1]) continue;
+      lctx.globalAlpha = kind === "sc" ? 1 : kind === "vsc" ? 0.55 : 0.18;
+      lctx.fillStyle = kind === "green" ? tok("--wet") : C.line;
+      lctx.fillRect(lx(n) - slot / 2, LP.t, slot, bottom - LP.t);
+    }
+    lctx.globalAlpha = 1;
+    const step = hi - lo > 40 ? 10 : 2;
+    lctx.font = "500 11px " + tok("--mono"); lctx.textBaseline = "middle"; lctx.textAlign = "right";
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      lctx.strokeStyle = C.line; lctx.lineWidth = 1; lctx.beginPath(); lctx.moveTo(LP.l, ly(v)); lctx.lineTo(w - LP.r, ly(v)); lctx.stroke();
+      lctx.fillStyle = C.muted; lctx.fillText(`${v} s`, LP.l - 6, ly(v));
+    }
+    lctx.textAlign = "center"; lctx.textBaseline = "top";
+    for (let n = FIRST; n <= N; n++) if (n === FIRST || n % 5 === 0) lctx.fillText(String(n), lx(n), bottom + 7);
+    lctx.save(); lctx.beginPath(); lctx.rect(LP.l, LP.t, w - LP.l - LP.r, bottom - LP.t); lctx.clip();
+    for (const [key, color] of [["real", C.real], ["ghost", C.ghost]]) {
+      lctx.beginPath(); let on = false;
+      for (let n = FIRST; n <= N; n++) {
+        const v = LT[key][n - 1]; if (v === null) { on = false; continue; }
+        on ? lctx.lineTo(lx(n), ly(v)) : lctx.moveTo(lx(n), ly(v)); on = true;
+      }
+      lctx.strokeStyle = color; lctx.lineWidth = 2; lctx.lineJoin = "round"; lctx.stroke();
+      lctx.fillStyle = color;
+      for (let n = FIRST; n <= N; n++) { const v = LT[key][n - 1]; if (v !== null) { lctx.beginPath(); lctx.arc(lx(n), ly(v), 2.4, 0, 7); lctx.fill(); } }
+    }
+    lctx.restore();
+    if (cur >= FIRST) {
+      lctx.strokeStyle = C.ink2; lctx.lineWidth = 1; lctx.setLineDash([3, 3]);
+      lctx.beginPath(); lctx.moveTo(lx(cur), LP.t); lctx.lineTo(lx(cur), bottom); lctx.stroke(); lctx.setLineDash([]);
+    }
+  }
+  function lapReadout() {
+    const done = (c) => c.ends.filter((e) => e !== null && e <= t).length, g = done(ghost), r = done(real);
+    if (!g && !r) { $("lapRead").textContent = "Last lap: –"; return; }
+    let txt = `Last lap: <span class="g">ghost L${g} ${secs(g ? LT.ghost[g - 1] : null)} s</span> · <span class="r">real L${r} ${secs(r ? LT.real[r - 1] : null)} s</span>`;
+    if (g && g === r && LT.ghost[g - 1] !== null && LT.real[r - 1] !== null) {
+      const d = LT.real[r - 1] - LT.ghost[g - 1];
+      txt += Math.abs(d) < 0.005 ? " · level" : ` · ${d > 0 ? "ghost" : "real"} quicker by ${Math.abs(d).toFixed(2)} s`;
+    }
+    $("lapRead").innerHTML = txt;
+  }
+  $("lapRows").innerHTML = Array.from({ length: N }, (_, i) => {
+    const n = i + 1, g = LT.ghost[i], r = LT.real[i], d = g !== null && r !== null ? r - g : null;
+    const gap = ghost.ends[i] !== null && real.ends[i] !== null ? real.ends[i] - ghost.ends[i] : null;
+    const cls = (v) => (v === null ? "na" : v > 0.005 ? "up" : v < -0.005 ? "down" : "");
+    const pit = (k) => (PIT[k][i] ? '<span class="tag pit">PIT</span>' : "");
+    return `<tr data-lap="${n}"><td>${n}${tagFor(n)}</td><td>${secs(g)}${pit("ghost")}</td><td>${secs(r)}${pit("real")}</td>` +
+           `<td class="${cls(d)}">${signed(d)}</td><td class="${cls(gap)}">${signed(gap, 1)}</td></tr>`;
+  }).join("");
+  $("lapRows").addEventListener("click", (e) => { const tr = e.target.closest("tr"); if (tr) { t = Math.min(lapStart(+tr.dataset.lap), duration); render(); } });
+  let shownLap = 0;
+  function markLapRow(lap) {                       // highlight the current lap and keep it in view inside the table
+    if (lap === shownLap) return;
+    const rows = $("lapRows").children, box = $("lapTable"), row = rows[lap - 1];
+    rows[shownLap - 1]?.classList.remove("now"); row?.classList.add("now"); shownLap = lap;
+    if (!row) return;
+    const top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    if (top < box.scrollTop + 32 || top > box.scrollTop + box.clientHeight - 40) box.scrollTop = top - box.clientHeight / 2;
+  }
+  for (const [k, label] of [["all", "All laps"], ["racing", "Racing pace"]]) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.setAttribute("aria-pressed", k === scale);
+    b.addEventListener("click", () => { scale = k; for (const o of $("lapScale").children) o.setAttribute("aria-pressed", o === b); lapNote(); render(); });
+    $("lapScale").append(b);
+  }
+  lapNote();
+  lc.addEventListener("pointermove", (e) => {
+    const r = lc.getBoundingClientRect(), mx = e.clientX - r.left, slot = (r.width - LP.l - LP.r) / (N - FIRST + 1);
+    const lap = Math.min(Math.max(FIRST + Math.floor((mx - LP.l) / slot), FIRST), N);
+    const g = LT.ghost[lap - 1], rl = LT.real[lap - 1], tip = $("lapTip");
+    const d = g === null || rl === null ? "" : Math.abs(rl - g) < 0.005 ? " · level" : ` · ${rl > g ? "ghost" : "real"} quicker by ${Math.abs(rl - g).toFixed(2)} s`;
+    const kind = DATA.neutral[lap - 1] === "sc" ? " · safety car" : DATA.neutral[lap - 1] === "vsc" ? " · VSC" : DATA.wet[lap - 1] ? " · wet" : "";
+    tip.innerHTML = `<b>Lap ${lap}</b>${kind}<br><span style="color:var(--ghost)">ghost ${secs(g)} s</span> · <span style="color:var(--real)">real ${secs(rl)} s</span>${d}`;
+    tip.hidden = false;
+    tip.style.left = Math.min(Math.max(mx - tip.offsetWidth / 2, 0), r.width - tip.offsetWidth) + "px"; tip.style.top = "4px";
+  });
+  lc.addEventListener("pointerleave", () => { $("lapTip").hidden = true; });
+
+  const trails = new Map();
+  function draw(t) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(base, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const c of cars) if (c.kind === "field" && visible(c, t)) {
+      const [x, y] = at(c, t); ctx.beginPath(); ctx.arc(X(x), Y(y), 4.2, 0, 7); ctx.fillStyle = C.field; ctx.fill();
+    }
+    for (const c of [real, ghost]) {
+      if (!visible(c, t)) continue;
+      const color = c === ghost ? C.ghost : C.real;
+      ctx.beginPath();
+      for (let s = 0; s <= 16; s++) { const [x, y] = at(c, Math.max(t - s * 0.5, 0)); s ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); }
+      ctx.strokeStyle = color; ctx.globalAlpha = 0.35; ctx.lineWidth = 3; ctx.stroke(); ctx.globalAlpha = 1;
+      const [x, y] = at(c, t);
+      ctx.beginPath(); ctx.arc(X(x), Y(y), 7, 0, 7); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.asphalt; ctx.stroke();
+      const label = c === ghost ? "HAM · ghost" : "HAM · real";
+      ctx.font = "600 12px " + tok("--display"); const w = ctx.measureText(label).width + 10;
+      const lx = X(x) + 10, ly = Y(y) - (c === ghost ? 22 : -6);
+      ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(lx, ly, w, 17, 3); ctx.fill();
+      ctx.fillStyle = "#ffffff"; ctx.fillText(label, lx + 5, ly + 12.5);
+    }
+  }
+
+  function render() {
+    const lap = lapAt(t), { pos, order } = standings(t);
+    draw(t);
+    $("lapPill").textContent = `Lap ${lap}/${N}`; $("towerLap").textContent = `Lap ${lap}/${N}`;
+    const flag = DATA.neutral[lap - 1], fp = $("flagPill");
+    fp.textContent = flag === "sc" ? "Safety car" : flag === "vsc" ? "Virtual safety car" : "Green";
+    fp.className = "pill flag-" + (flag === "sc" ? "sc" : flag === "vsc" ? "vsc" : "green");
+    $("wetPill").hidden = !DATA.wet[lap - 1];
+    // the two Hamiltons, head to head on the road
+    let L = 0; while (L < N && ghost.ends[L] !== null && ghost.ends[L] <= t && real.ends[L] !== null && real.ends[L] <= t) L++;
+    const apart = L ? real.ends[L - 1] - ghost.ends[L - 1] : null;
+    $("versus").innerHTML = `<span class="g">Ghost <b>P${pos.get("ghost")}</b></span><span class="r">Real <b>P${pos.get(real.id)}</b></span>` +
+      (apart === null ? "" : `<span class="d">${Math.abs(apart) < 0.05 ? "level" : `ghost ${apart > 0 ? "ahead" : "behind"} by <b>${Math.abs(apart).toFixed(1)} s</b>`} (lap ${L})</span>`);
+    $("rows").innerHTML = order.map((c) => {
+      const tyre = TYRE[c.compound[Math.min(lap, N) - 1]] || TYRE.UNKNOWN;
+      const name = c.kind === "ghost" ? `${c.code}<small>ghost</small>` : c.kind === "real" ? `${c.code}<small>real</small>` : c.code;
+      return `<li class="row ${c.kind === "field" ? "" : c.kind} ${c.out && t > c.last ? "out" : ""}"><span class="pos">${pos.get(c.id)}</span><span class="bar"></span>` +
+        `<span class="who">${name}</span><span class="tyre" style="border-color:var(${tyre[1]})" title="${TYRE_NAME[c.compound[lap - 1]] || ""}">${tyre[0]}</span><span class="gap">${gapText(c, t)}</span></li>`;
+    }).join("");
+    $("scrub").value = Math.round(t); $("clock").textContent = `${fmt(t)}  ·  ${speed}×`;
+    drawLaps(lap); lapReadout(); markLapRow(lap);
+  }
+
+  // ---- playback
+  let t = Math.min(lapStart(8) + 45, duration), playing = false, speed = 16, last = 0;
+  function loop(now) {
+    if (!playing) return;
+    t = Math.min(t + ((now - last) / 1000) * speed, duration); last = now;
+    if (t >= duration) setPlaying(false);
+    render(); requestAnimationFrame(loop);
+  }
+  function setPlaying(on) {
+    playing = on; $("play").textContent = on ? "Pause" : t >= duration ? "Replay" : "Play";
+    if (on) { if (t >= duration) t = 0; last = performance.now(); requestAnimationFrame(loop); }
+  }
+  $("play").addEventListener("click", () => setPlaying(!playing));
+  $("scrub").max = Math.floor(duration);
+  $("scrub").addEventListener("input", (e) => { t = +e.target.value; render(); });
+  for (const s of [1, 4, 16, 64]) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = s + "×"; b.setAttribute("aria-pressed", s === speed);
+    b.addEventListener("click", () => { speed = s; for (const o of $("speeds").children) o.setAttribute("aria-pressed", o === b); render(); });
+    $("speeds").append(b);
+  }
+  const moments = [["Race start", 1, 0], ["Standing start", 3, 0], ["Lap 8: wet phase ends", 8, 45], ["Lap 9: everyone pits", 9, 0],
+                   ["Restart", 13, 0], ["Lap 31 stop", 31, 60], ["Late VSC", 43, 0], ["Final sprint", 52, 0]];
+  for (const [label, lap, off] of moments) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = label;
+    b.addEventListener("click", () => { t = Math.min(lapStart(lap) + off, duration); render(); });
+    $("moments").append(b);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, button") && e.key === " ") return;
+    if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const lap = lapAt(t) + (e.key === "ArrowRight" ? 1 : -1); t = lapStart(Math.min(Math.max(lap, 1), N)); render();
+    }
+  });
+
+  // ---- hover: which car is that?
+  canvas.addEventListener("pointermove", (e) => {
+    const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    let best = null, bd = 14;
+    for (const c of cars) if (visible(c, t)) { const [x, y] = at(c, t), d = Math.hypot(X(x) - mx, Y(y) - my); if (d < bd) { bd = d; best = c; } }
+    const tip = $("tip");
+    if (!best) { tip.hidden = true; return; }
+    const { pos } = standings(t), lap = lapAt(t);
+    const who = best.kind === "ghost" ? "Ghost: Hamilton as if he had started on inters (model)" : best.kind === "real" ? "Real Hamilton" : `${best.code} · ${best.team}`;
+    tip.innerHTML = `<b>${who}</b><br>P${pos.get(best.id)} · ${TYRE_NAME[best.compound[lap - 1]] || "–"}${inPit(best, t) ? " · in the pits" : ""}`;
+    tip.hidden = false;
+    tip.style.left = Math.min(mx + 14, r.width - tip.offsetWidth - 8) + "px"; tip.style.top = Math.max(my - 44, 8) + "px";
+  });
+  canvas.addEventListener("pointerleave", () => { $("tip").hidden = true; });
+
+  const s = DATA.summary;
+  $("answer").innerHTML = `Over <span class="figure">${s.n.toLocaleString("en")}</span> Monte Carlo draws the ghost finishes <b>P3 in ${(s.p3 * 100).toFixed(1)}%</b> ` +
+    `(expected <span class="figure">P${s.expected.toFixed(2)}</span>, against <span class="figure">P${s.actual_expected.toFixed(2)}</span> for the real strategy in the same model). ` +
+    `Ghost vs real, draw by draw: the same place in ${(s.same * 100).toFixed(1)}%, the ghost higher in ${(s.better * 100).toFixed(1)}%. The lap-9 safety car erased the time slicks cost him.`;
+
+  new ResizeObserver(() => { layout(); render(); }).observe(wrap);
+  new ResizeObserver(() => render()).observe($("lapsWrap"));
+  layout(); render();
+})();
+</script>

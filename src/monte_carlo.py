@@ -30,6 +30,7 @@ def scenario(p, cfg):
                        "stints": real_stints(me, real_from)},
             "start_gaps": start_gaps(p["df"], p["session"].results, cfg).gap_s.to_numpy(),
             "dirty_gap_s": cfg["pace"]["traffic_gap_s"], "follow_gap_s": p["traffic"]["follow_gap_s"],
+            "pit_in_share": p["pit_in_share"],
             "dry_offset_s": cfg["monte_carlo"]["dry_pace_offset_s"],
             "inter": ip, "ref": ip["ref"].to_dict(), "effects": p["effects"].to_dict(),
             "stint_of": me.Stint.dropna().astype(int).to_dict(),   # both plans run his real stints after the crossover
@@ -45,7 +46,8 @@ def ghost(p, s, plan, start_gap_s, offset, coef, pass_s, dirty_s, pit_loss_s, no
     lap_time = lambda lap, comp, age: noise.get(lap, 0.0) + (
         ref[lap] + offset if comp == "INTERMEDIATE" else dry(lap, comp, age) + dry_offset)
     return simulate(p["race"], plan["start_lap"], plan["start_s"] + start_gap_s, plan["stints"], lap_time, pit_loss_s,
-                    pass_cost_s=pass_s, dirty_air_s=dirty_s, dirty_gap_s=s["dirty_gap_s"], follow_gap_s=s["follow_gap_s"])
+                    pass_cost_s=pass_s, dirty_air_s=dirty_s, dirty_gap_s=s["dirty_gap_s"], follow_gap_s=s["follow_gap_s"],
+                    pit_in_share=s["pit_in_share"])
 
 
 def run(cfg, p=None, n=None):
@@ -123,6 +125,7 @@ def run(cfg, p=None, n=None):
                    "start_gaps_s": [round(float(g), 2) for g in s["start_gaps"]],
                    "pass_cost_s": round(float(central_tr["pass_cost_s"]), 3), "dirty_air_s": round(float(central_tr["dirty_air_s"]), 3),
                    "green_pit_loss_median_s": round(float(p["green_loss"].median()), 2),
+                   "green_pit_in_lap_share": round(float(p["pit_in_share"]), 2),
                    "stint_pace_s_per_lap": {k: {"offset": round(float(fit["coef"][k]), 2), "se": round(float(np.sqrt(fit["cov"].loc[k, k])), 2)}
                                             for k in fit["coef"].index if k.startswith("stint_")},
                    "lap_noise_sd_s": {"wet": round(float(ip["lap_sd"]), 3), "dry": round(float(fit["resid_sd"]), 3)},

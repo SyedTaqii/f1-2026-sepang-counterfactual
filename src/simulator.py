@@ -15,7 +15,7 @@ def race_from_laps(laps, neutral, wear):
 
 
 def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s=0.0, dirty_air_s=0.0, dirty_gap_s=0.0,
-             follow_gap_s=0.0):
+             follow_gap_s=0.0, pit_in_share=1.0):
     """Run the ghost from the end of `start_lap` (cumulative time `start_s`, same clock as race['times']) to the flag.
 
     race: times (lap x driver cumulative s, NaN = not running), pit_in / pit_out (lap x driver, in-/out-lap),
@@ -23,7 +23,7 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
     stints: [(compound, age at the end of start_lap or at the stop, last lap)]; the ghost stops after each
           stint's last lap except the final stint's.
     lap_time(lap, compound, age): the ghost's green-lap time.
-    Green lap: lap_time, + pit_loss_s on an in-lap, + traffic: pass_cost_s per car passed, dirty_air_s if it ends
+    Green lap: lap_time, + pit_in_share of pit_loss_s on an in-lap and the rest on the out-lap, + traffic: pass_cost_s per car passed, dirty_air_s if it ends
     the lap within dirty_gap_s of a car ahead or is held up behind one, never closer than follow_gap_s behind the
     car holding it up (see _traffic). The defaults are free passing and no dirty air.
     Neutralised lap: the ghost copies the real cars around it on the road (_copy): the ones on a normal lap or,
@@ -34,7 +34,7 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
     busy = (race["busy"] if "busy" in race else _busy(race)).to_numpy()
     neutral, wear = race["neutral"].reindex(laps).to_numpy(), race["wear"].reindex(laps).to_numpy(float)
     k, (comp, age, last) = 0, stints[0]
-    t, out_lap, rows = start_s, None, []
+    t, out_lap, owed, rows = start_s, None, 0.0, []     # owed: the out-lap's share of a green stop
     for i in range(laps.get_loc(start_lap) + 1, len(laps)):
         n = int(laps[i])
         age += wear[i]
@@ -48,10 +48,11 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
                 raise ValueError(f"no real car stopped on neutralised lap {n}: nothing to copy")
             t, out_lap = [_copy(T, stoppers, i, t, m) for m in (i, i + 1)]
         elif neutral[i] == "green":
-            t += lap_time(n, comp, age) + (pit_loss_s if stop else 0.0)
+            t += lap_time(n, comp, age) + owed + (pit_loss_s * pit_in_share if stop else 0.0)
+            owed = pit_loss_s * (1 - pit_in_share) if stop else 0.0
             t, passes = _traffic(prev, now, busy[i], t_prev, t, pass_cost_s, dirty_air_s, dirty_gap_s, follow_gap_s)
         else:
-            t = _copy(T, ~np.isnan(prev) & ~np.isnan(now) & ~busy[i], i, t, i)
+            t, owed = _copy(T, ~np.isnan(prev) & ~np.isnan(now) & ~busy[i], i, t, i) + owed, 0.0
         rows.append((n, t, t - t_prev, 1 + int(np.sum(now < t)), comp, age, passes))
         if stop:
             k += 1

@@ -17,11 +17,13 @@ def prepare(cfg):
     effects = lap_effects(df, fit, cfg)
     stops = pit_stops(df, cfg)
     wear = lap_wear(phases, cfg)
+    green = stops[(stops.neutral == "green") & (stops.Driver != target)]
     field = race_from_laps(df, phases.neutral, wear)
     incidents = field["times"].index[retiring(field["times"]).any(axis=1)]
     return {"session": session, "phases": phases, "df": df, "fit": fit, "effects": effects,
             "n_laps": int(df.LapNumber.max()),
-            "green_loss": stops[(stops.neutral == "green") & (stops.Driver != target)].loss_s,
+            "green_loss": green.loss_s,
+            "pit_in_share": float(((green.in_s - green.ref_in_s) / green.loss_s).median()),   # the rest lands on the out-lap
             "traffic": traffic_costs(df, fit, effects, passes_per_lap(field), incidents, cfg),
             "race": race_from_laps(df[df.Driver != target], phases.neutral, wear)}
 
@@ -52,7 +54,7 @@ def backtest(p, cfg):
     me = df[df.Driver == cfg["drivers"]["target"]].set_index("LapNumber")
     sim = simulate(p["race"], start, me.Time[start].total_seconds(), real_stints(me, start),
                    dry_lap_time(p["fit"]["coef"], p["effects"], p["n_laps"], me.Stint.dropna().astype(int).to_dict()),
-                   p["green_loss"].median(),
+                   p["green_loss"].median(), pit_in_share=p["pit_in_share"],
                    **traffic(p, cfg))
     real = me.loc[sim.index]
     return sim.assign(real_cum_s=real.Time.dt.total_seconds(), real_lap_s=real.lap_s, real_position=real.Position,

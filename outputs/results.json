@@ -8,55 +8,55 @@
     "distribution": {
       "1": 0.0002,
       "2": 0.0108,
-      "3": 0.9076,
-      "4": 0.0259,
-      "5": 0.0143,
-      "6": 0.0382,
+      "3": 0.9093,
+      "4": 0.0254,
+      "5": 0.0136,
+      "6": 0.038,
       "7": 0.0016,
-      "8": 0.0011,
+      "8": 0.0008,
       "9": 0.0003
     },
-    "expected": 3.172,
+    "expected": 3.168,
     "median": 3.0,
     "p_win": 0.0002,
-    "p_podium": 0.9186,
-    "expected_gain_vs_actual": -0.172,
+    "p_podium": 0.9203,
+    "expected_gain_vs_actual": -0.168,
     "gap_to_winner_s": {
       "p10": 3.37,
       "median": 4.16,
-      "p90": 6.52
+      "p90": 6.48
     }
   },
   "actual_strategy": {
     "distribution": {
       "1": 0.0001,
-      "2": 0.0021,
+      "2": 0.002,
       "3": 0.5714,
-      "4": 0.1203,
-      "5": 0.0682,
-      "6": 0.2055,
-      "7": 0.0159,
-      "8": 0.0088,
-      "9": 0.0076,
+      "4": 0.1195,
+      "5": 0.0697,
+      "6": 0.2064,
+      "7": 0.0151,
+      "8": 0.0086,
+      "9": 0.0071,
       "10": 0.0001
     },
-    "expected": 4.025,
-    "p_podium": 0.5736,
+    "expected": 4.023,
+    "p_podium": 0.5735,
     "gap_to_winner_s": {
       "p10": 3.64,
-      "median": 6.09,
-      "p90": 10.54
+      "median": 6.11,
+      "p90": 10.52
     }
   },
   "paired": {
-    "p_better": 0.3935,
-    "p_same": 0.6011,
-    "p_worse": 0.0054,
-    "expected_places_gained": 0.853,
+    "p_better": 0.3939,
+    "p_same": 0.601,
+    "p_worse": 0.0051,
+    "expected_places_gained": 0.855,
     "time_gained_s": {
-      "p10": -0.01,
-      "median": 1.51,
-      "p90": 5.32
+      "p10": -0.02,
+      "median": 1.52,
+      "p90": 5.36
     }
   },
   "positions_by_lap": {
@@ -99,16 +99,16 @@
     "before_late_sc": {
       "lap": 42,
       "distribution": {
-        "2": 0.0232,
-        "3": 0.1468,
-        "4": 0.5917,
-        "5": 0.1995,
-        "6": 0.005,
-        "7": 0.0242,
+        "2": 0.0233,
+        "3": 0.1469,
+        "4": 0.5989,
+        "5": 0.1927,
+        "6": 0.0048,
+        "7": 0.0249,
         "8": 0.0055,
-        "9": 0.0035,
-        "10": 0.0004,
-        "11": 0.0002
+        "9": 0.0027,
+        "10": 0.0002,
+        "11": 0.0001
       }
     }
   },
@@ -135,6 +135,7 @@
     "pass_cost_s": 0.893,
     "dirty_air_s": 0.713,
     "green_pit_loss_median_s": 26.79,
+    "green_pit_in_lap_share": 0.28,
     "stint_pace_s_per_lap": {
       "stint_2": {
         "offset": -0.41,
@@ -209,41 +210,41 @@
   },
   "sensitivity": {
     "n": 1000,
-    "base_expected": 3.208,
-    "base_gain": 0.809,
+    "base_expected": 3.21,
+    "base_gain": 0.81,
     "bars": [
       {
         "label": "Dry pace (s/lap)",
         "key": "monte_carlo.dry_pace_offset_s",
         "low": -0.37,
         "high": 0.37,
-        "expected_low": 2.929,
-        "gain_low": 0.19,
-        "expected_high": 4.021,
-        "gain_high": 2.096,
-        "swing": 1.092
+        "expected_low": 2.922,
+        "gain_low": 0.199,
+        "expected_high": 4.013,
+        "gain_high": 2.125,
+        "swing": 1.091
       },
       {
         "label": "Lap he pits for slicks",
         "key": "counterfactual.crossover_lap",
         "low": 8,
         "high": 10,
-        "expected_low": 3.512,
-        "gain_low": 0.505,
-        "expected_high": 3.051,
-        "gain_high": 0.966,
-        "swing": 0.461
+        "expected_low": 3.506,
+        "gain_low": 0.514,
+        "expected_high": 3.05,
+        "gain_high": 0.97,
+        "swing": 0.456
       },
       {
-        "label": "Green pit loss (s)",
-        "key": "monte_carlo.fixed.green_pit_loss_s",
-        "low": 24.4,
-        "high": 30.3,
-        "expected_low": 3.044,
-        "gain_low": 0.622,
-        "expected_high": 3.159,
-        "gain_high": 1.087,
-        "swing": 0.115
+        "label": "Pass cost (s)",
+        "key": "sim.pass_cost_s",
+        "low": 0.72,
+        "high": 1.06,
+        "expected_low": 3.162,
+        "gain_low": 0.438,
+        "expected_high": 3.27,
+        "gain_high": 1.228,
+        "swing": 0.108
       },
       {
         "label": "Standing-start gap (s)",
@@ -251,65 +252,65 @@
         "low": 0.0,
         "high": 5.14,
         "expected_low": 3.183,
-        "gain_low": 0.834,
-        "expected_high": 3.293,
-        "gain_high": 0.724,
-        "swing": 0.11
-      },
-      {
-        "label": "Pass cost (s)",
-        "key": "sim.pass_cost_s",
-        "low": 0.72,
-        "high": 1.06,
-        "expected_low": 3.164,
-        "gain_low": 0.445,
-        "expected_high": 3.27,
-        "gain_high": 1.243,
+        "gain_low": 0.837,
+        "expected_high": 3.289,
+        "gain_high": 0.731,
         "swing": 0.106
       },
       {
-        "label": "Inter pace vs leaders (s/lap)",
-        "key": "monte_carlo.fixed.inter_offset_s",
-        "low": -0.48,
-        "high": 0.63,
-        "expected_low": 3.174,
-        "gain_low": 0.843,
-        "expected_high": 3.239,
-        "gain_high": 0.778,
-        "swing": 0.065
+        "label": "Green pit loss (s)",
+        "key": "monte_carlo.fixed.green_pit_loss_s",
+        "low": 24.4,
+        "high": 30.3,
+        "expected_low": 3.044,
+        "gain_low": 0.619,
+        "expected_high": 3.147,
+        "gain_high": 1.096,
+        "swing": 0.103
       },
       {
         "label": "Tyre wear on wet/SC laps",
         "key": "pace.wet_sc_wear",
         "low": 0.0,
         "high": 1.0,
-        "expected_low": 3.208,
-        "gain_low": 0.809,
+        "expected_low": 3.21,
+        "gain_low": 0.81,
         "expected_high": 3.143,
-        "gain_high": 0.812,
-        "swing": 0.065
+        "gain_high": 0.805,
+        "swing": 0.067
+      },
+      {
+        "label": "Inter pace vs leaders (s/lap)",
+        "key": "monte_carlo.fixed.inter_offset_s",
+        "low": -0.48,
+        "high": 0.63,
+        "expected_low": 3.172,
+        "gain_low": 0.848,
+        "expected_high": 3.236,
+        "gain_high": 0.784,
+        "swing": 0.064
       },
       {
         "label": "Dirty air (s/lap)",
         "key": "sim.dirty_air_s",
         "low": 0.59,
         "high": 0.84,
-        "expected_low": 3.181,
-        "gain_low": 0.7,
-        "expected_high": 3.232,
-        "gain_high": 0.93,
-        "swing": 0.051
+        "expected_low": 3.179,
+        "gain_low": 0.703,
+        "expected_high": 3.234,
+        "gain_high": 0.927,
+        "swing": 0.055
       },
       {
         "label": "Inter method (ratio / LEC proxy)",
         "key": "pace.proxy_weight",
         "low": 0.0,
         "high": 1.0,
-        "expected_low": 3.211,
-        "gain_low": 0.806,
-        "expected_high": 3.21,
-        "gain_high": 0.807,
-        "swing": 0.001
+        "expected_low": 3.213,
+        "gain_low": 0.807,
+        "expected_high": 3.209,
+        "gain_high": 0.811,
+        "swing": 0.004
       }
     ]
   },
@@ -321,57 +322,57 @@
     "actual_position": 4,
     "finish": {
       "distribution": {
-        "1": 0.0044,
-        "2": 0.0133,
-        "3": 0.4159,
-        "4": 0.4718,
-        "5": 0.0037,
-        "6": 0.09,
-        "7": 0.0002,
+        "1": 0.0045,
+        "2": 0.0138,
+        "3": 0.418,
+        "4": 0.474,
+        "5": 0.0038,
+        "6": 0.0849,
+        "7": 0.0003,
         "8": 0.0003,
         "9": 0.0004
       },
-      "expected": 3.732,
+      "expected": 3.719,
       "median": 4.0,
-      "p_win": 0.0044,
-      "p_podium": 0.4336,
-      "expected_gain_vs_actual": 0.268,
+      "p_win": 0.0045,
+      "p_podium": 0.4363,
+      "expected_gain_vs_actual": 0.281,
       "gap_to_winner_s": {
         "p10": 3.74,
-        "median": 5.69,
-        "p90": 8.49
+        "median": 5.68,
+        "p90": 8.32
       }
     },
     "actual_strategy": {
       "distribution": {
         "1": 0.0002,
         "2": 0.0027,
-        "3": 0.3345,
-        "4": 0.3186,
-        "5": 0.0234,
-        "6": 0.3025,
-        "7": 0.0068,
-        "8": 0.0042,
-        "9": 0.007,
+        "3": 0.3429,
+        "4": 0.3191,
+        "5": 0.0236,
+        "6": 0.294,
+        "7": 0.0062,
+        "8": 0.0043,
+        "9": 0.0069,
         "11": 0.0001
       },
-      "expected": 4.361,
-      "p_podium": 0.3374,
+      "expected": 4.334,
+      "p_podium": 0.3458,
       "gap_to_winner_s": {
-        "p10": 3.86,
-        "median": 6.55,
-        "p90": 10.53
+        "p10": 3.85,
+        "median": 6.45,
+        "p90": 10.52
       }
     },
     "paired": {
-      "p_better": 0.3933,
-      "p_same": 0.5889,
-      "p_worse": 0.0178,
-      "expected_places_gained": 0.629,
+      "p_better": 0.3863,
+      "p_same": 0.5931,
+      "p_worse": 0.0206,
+      "expected_places_gained": 0.615,
       "time_gained_s": {
-        "p10": -0.17,
-        "median": 0.62,
-        "p90": 3.57
+        "p10": -0.19,
+        "median": 0.55,
+        "p90": 3.55
       }
     },
     "positions_by_lap": {
@@ -411,13 +412,13 @@
       "before_late_sc": {
         "lap": 42,
         "distribution": {
-          "1": 0.028,
-          "2": 0.3549,
-          "3": 0.304,
-          "4": 0.2511,
+          "1": 0.0293,
+          "2": 0.3585,
+          "3": 0.3299,
+          "4": 0.2247,
           "5": 0.0001,
-          "6": 0.0602,
-          "7": 0.0015,
+          "6": 0.0561,
+          "7": 0.0012,
           "8": 0.0001,
           "9": 0.0001
         }
@@ -446,6 +447,7 @@
       "pass_cost_s": 0.787,
       "dirty_air_s": 0.598,
       "green_pit_loss_median_s": 26.63,
+      "green_pit_in_lap_share": 0.27,
       "stint_pace_s_per_lap": {},
       "lap_noise_sd_s": {
         "wet": 0.663,
