@@ -13,8 +13,9 @@ def load_config(path=ROOT / "config.yaml"):
     return yaml.safe_load(Path(path).read_text())
 
 
-def load_session(cfg):
-    """Load the race by year + round (the event name is ambiguous: 'Bahrain GP' ran at Sepang)."""
+def load_session(cfg, telemetry=False):
+    """Load the race by year + round (the event name is ambiguous: 'Bahrain GP' ran at Sepang).
+    telemetry=True adds every car's GPS position (`session.pos_data`) for the replay."""
     cache = ROOT / cfg["cache_dir"]
     cache.mkdir(exist_ok=True)
     fastf1.Cache.enable_cache(str(cache))
@@ -22,7 +23,7 @@ def load_session(cfg):
     session = fastf1.get_session(r["year"], r["round"], r["session"])
     location = session.event["Location"]
     assert location == r["expected_location"], f"round {r['round']} is at {location}, expected {r['expected_location']}"
-    session.load(laps=True, telemetry=False, weather=True, messages=True)
+    session.load(laps=True, telemetry=telemetry, weather=True, messages=True)
     # If the classification API is unreachable, FastF1 silently rebuilds results from timing data
     # (no grid, no status). That put LEC P17 instead of P4 here, so refuse to continue on it.
     if session.results["Status"].isna().any():
@@ -90,13 +91,19 @@ def timing_vs_official(laps, results):
     return pd.DataFrame({"official_gap": official, "timing_gap": timing, "error": timing - official})
 
 
+SESSION_CLOCK = ["Time", "LapStartTime", "PitInTime", "PitOutTime",
+                 "Sector1SessionTime", "Sector2SessionTime", "Sector3SessionTime"]
+
+
 def fix_timing(session, cfg):
-    """Copy of the laps with each driver in data_fixes.timing_offset_from_lap shifted from that lap on, so their
-    finish gap matches the official one. Lap times are untouched; only the cumulative Time moves."""
+    """Copy of the laps with each driver in data_fixes.timing_offset_from_lap moved on the session clock from that lap
+    on, so their finish gap matches the official one. Lap and sector durations are untouched; every session-clock
+    column (lap end, lap start, pit in/out, sector ends) moves together."""
     laps = session.laps.copy()
     error = timing_vs_official(session.laps, session.results).error
     for drv, lap in cfg["data_fixes"]["timing_offset_from_lap"].items():
-        laps.loc[(laps.Driver == drv) & (laps.LapNumber >= lap), "Time"] -= pd.Timedelta(seconds=error[drv])
+        rows = (laps.Driver == drv) & (laps.LapNumber >= lap)
+        laps.loc[rows, SESSION_CLOCK] = laps.loc[rows, SESSION_CLOCK] - pd.Timedelta(seconds=error[drv])
     return laps
 
 

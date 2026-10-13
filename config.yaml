@@ -22,6 +22,7 @@ pace:
   dry_fit_start_lap: 17             # field median lap time falls 109.4 -> 103.5 s over laps 13-16 (track still drying), then flattens
   traffic_gap_s: 1.0                # a lap is in traffic if any car crossed the line less than this ahead
   wet_sc_wear: 0.0                  # tyre wear of a wet or neutralised lap, as a fraction of a green dry lap (0 = none, 1 = raw TyreLife)
+  stint_pace: true                  # the target's dry pace is fitted per tyre stint (D-029); false = one pace for the whole race (M2-M5)
   proxy_weight: 0.5                 # inter pace = w * proxy (via LEC) + (1-w) * ratio (HAM dry gap scaled); sigma covers the gap between them either way
 
 pit_loss:
@@ -31,7 +32,7 @@ start:
   comparable_grid_max: 8            # inter starters from grid P1..this are "comparable" for the standing-start gap
 
 data_fixes:
-  timing_offset_from_lap: {LEC: 48} # FastF1 has LEC ~19.5 s late from this lap (48 and 51 have no LapTime; his Position drops to P16-19 under the SC). The shift = his timing gap minus the official gap
+  timing_offset_from_lap: {LEC: 1}  # FastF1 has LEC's lap timing ~19.4 s late on every lap: his GPS line crossings sit 19.4 s earlier than the field's on all laps and match the official result (D-010). The shift = his timing gap minus the official gap
 
 sim:
   pass_cost_s: null                 # time per car caught on a green lap (passed or not). null = measured from the other drivers (pace_model.traffic_costs); a number overrides it (0 = PRD default: free passing)
@@ -59,13 +60,13 @@ monte_carlo:
 sensitivity:
   n: 1000                           # draws per tornado run; every run uses the same seed, so the bars are not sampling noise
   tornado:                          # one assumption at a time to its low and high value; bar = change in expected finishing position (inters)
-    # sampled inputs pinned at roughly their 10th / 90th percentile
-    - {key: monte_carlo.fixed.inter_offset_s, low: -1.94, high: 0.06, label: "Inter pace vs leaders (s/lap)"}       # Normal(-0.94, 0.78)
-    - {key: monte_carlo.dry_pace_offset_s, low: -0.30, high: 0.30, label: "Dry pace (s/lap)"}                     # soft intercept se 0.23
+    # sampled inputs pinned at roughly their 10th / 90th percentile (tornado() refuses ranges that miss the measured value)
+    - {key: monte_carlo.fixed.inter_offset_s, low: -0.48, high: 0.63, label: "Inter pace vs leaders (s/lap)"}       # Normal(0.08, 0.43)
+    - {key: monte_carlo.dry_pace_offset_s, low: -0.37, high: 0.37, label: "Dry pace (s/lap)"}                     # soft intercept se 0.29
     - {key: monte_carlo.fixed.start_gap_s, low: 0.0, high: 5.14, label: "Standing-start gap (s)"}                 # best / worst real starter
-    - {key: monte_carlo.fixed.green_pit_loss_s, low: 24.0, high: 30.3, label: "Green pit loss (s)"}                 # P10 / P90 of 27 stops
-    - {key: sim.pass_cost_s, low: 0.20, high: 0.53, label: "Pass cost (s)"}                                       # 0.36 +/- 1.28 se
-    - {key: sim.dirty_air_s, low: 0.36, high: 0.61, label: "Dirty air (s/lap)"}                                   # 0.49 +/- 1.28 se
+    - {key: monte_carlo.fixed.green_pit_loss_s, low: 24.4, high: 30.3, label: "Green pit loss (s)"}                 # P10 / P90 of 27 stops
+    - {key: sim.pass_cost_s, low: 0.72, high: 1.06, label: "Pass cost (s)"}                                       # 0.89 +/- 1.28 se
+    - {key: sim.dirty_air_s, low: 0.59, high: 0.84, label: "Dirty air (s/lap)"}                                   # 0.71 +/- 1.28 se
     # modelling choices
     - {key: pace.proxy_weight, low: 0.0, high: 1.0, label: "Inter method (ratio / LEC proxy)"}                    # D-014
     - {key: counterfactual.crossover_lap, low: 8, high: 10, label: "Lap he pits for slicks"}                      # D-012: 8 = a lap before the SC
@@ -73,3 +74,13 @@ sensitivity:
 
 repeat:
   driver: LEC                       # PRD: repeat the counterfactual for the teammate; he ran inters himself, so his own laps replace the proxy
+
+replay:                             # the race replay: real GPS for the field, the central inters run as a ghost (D-028)
+  hz: 2                             # GPS samples per second kept (FastF1 has about 3.8); 2 keeps the page near 2 MB
+  html: outputs/race_replay.html
+  gif: outputs/race_replay.gif
+  gif_fps: 8
+  gif_segments:                     # the key moments for the README; speed = race seconds per GIF second
+    - {label: "Lap 3: the standing start, the ghost on inters", from_lap: 3, to_lap: 5, speed: 30}
+    - {label: "Lap 9: everyone pits under the safety car", from_lap: 9, to_lap: 12, speed: 40}
+    - {label: "Laps 52-55: the restart sprint", from_lap: 52, to_lap: 55, speed: 30}

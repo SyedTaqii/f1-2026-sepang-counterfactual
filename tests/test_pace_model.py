@@ -69,3 +69,23 @@ def test_eff_age(wear, first_life, expected):
     ph = phases(L1=("wet", "green"), L2=("wet", "green"), L3=("dry", "sc"))
     cfg = {**CFG, "pace": {**CFG["pace"], "wet_sc_wear": wear}}
     assert add_lap_features(laps, ph, cfg).eff_age.tolist() == expected
+
+
+def test_stint_pace_recovers_the_targets_faster_second_stint():
+    from src.pace_model import dry_lap_time, fit_pace
+    rows = []
+    for drv, offset, gap in (("A", 0.0, 0), ("B", 0.4, 6)):            # B is 0.4 s slower and on older tyres
+        for lap in range(17, 41):
+            stint = 1 if lap <= 30 else 2
+            age = lap - (16 if stint == 1 else 30) + gap
+            faster = -0.7 if drv == "A" and stint == 2 else 0.0           # the target's second stint is 0.7 s quicker
+            rows.append(dict(Driver=drv, LapNumber=lap, Stint=stint, Compound="SOFT", eff_age=float(age), clean=True,
+                             condition="dry", lap_s=100 + 0.15 * age + 0.05 * (40 - lap) + offset + faster))
+    df = pd.DataFrame(rows)
+    cfg = {"drivers": {"target": "A"}, "pace": {"dry_fit_start_lap": 17, "stint_pace": True}}
+    coef = fit_pace(df, cfg)["coef"]
+    assert coef["stint_2"] == pytest.approx(-0.7)
+    assert coef["d_B"] == pytest.approx(0.4)
+    lap_time = dry_lap_time(coef, {}, 40, stint_of={35: 2})
+    assert lap_time(35, "SOFT", 5) == pytest.approx(100 + 0.75 + 0.25 - 0.7)
+    assert "stint_2" not in fit_pace(df, {**cfg, "pace": {**cfg["pace"], "stint_pace": False}})["coef"]

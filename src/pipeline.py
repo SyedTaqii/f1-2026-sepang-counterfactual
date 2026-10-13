@@ -31,7 +31,7 @@ def traffic(p, cfg):
     s, c = cfg["sim"], p["traffic"]["coef"]
     return {"pass_cost_s": c["pass"] if s["pass_cost_s"] is None else s["pass_cost_s"],
             "dirty_air_s": c["dirty"] if s["dirty_air_s"] is None else s["dirty_air_s"],
-            "dirty_gap_s": cfg["pace"]["traffic_gap_s"]}
+            "dirty_gap_s": cfg["pace"]["traffic_gap_s"], "follow_gap_s": p["traffic"]["follow_gap_s"]}
 
 
 def real_stints(me, start):
@@ -51,7 +51,8 @@ def backtest(p, cfg):
     df = p["df"]
     me = df[df.Driver == cfg["drivers"]["target"]].set_index("LapNumber")
     sim = simulate(p["race"], start, me.Time[start].total_seconds(), real_stints(me, start),
-                   dry_lap_time(p["fit"]["coef"], p["effects"], p["n_laps"]), p["green_loss"].median(),
+                   dry_lap_time(p["fit"]["coef"], p["effects"], p["n_laps"], me.Stint.dropna().astype(int).to_dict()),
+                   p["green_loss"].median(),
                    **traffic(p, cfg))
     real = me.loc[sim.index]
     return sim.assign(real_cum_s=real.Time.dt.total_seconds(), real_lap_s=real.lap_s, real_position=real.Position,

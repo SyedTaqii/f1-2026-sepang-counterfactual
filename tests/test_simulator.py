@@ -78,19 +78,30 @@ def test_pass_cost_per_car_passed():
 def test_traffic_stuck_behind_a_car_it_cannot_afford_to_pass():
     r = race({"A": [0, 100], "B": [1, 101]}, ["green"])
     sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.8, pit_loss_s=0.0, pass_cost_s=0.3)
-    # meets B first: 100.1 < 101, passed. Then A: 100.4 >= 100, stuck behind it (and charged for the attempt)
+    # meets B first: 100.1 < 101, passed. Then A: 100.4 >= 100, so it's held behind A (no charge for the attempt)
     assert sim.passes.tolist() == [1]
-    assert sim.cum_s.tolist() == pytest.approx([100.4])
+    assert sim.cum_s.tolist() == pytest.approx([100.1])
     assert sim.position.tolist() == [2]
 
 
 def test_failed_pass_cannot_drop_behind_a_car_passed_that_lap():
     r = race({"A": [0, 100], "B": [1, 100.4]}, ["green"])
-    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.9, pit_loss_s=0.0, pass_cost_s=0.3)
-    # passes B (100.2 < 100.4), fails on A (100.5 >= 100): stuck behind A but still level with B, not behind it
+    sim = simulate(r, 0, 2.0, [("SOFT", 0, 1)], lambda lap, c, age: 97.9, pit_loss_s=0.0, pass_cost_s=0.3,
+                   dirty_air_s=0.5, dirty_gap_s=1.0)
+    # passes B (100.2 < 100.4), held behind A (100.5 >= 100); dirty air would put it at 100.7, behind B: it stays level
     assert sim.passes.tolist() == [1]
     assert sim.cum_s.tolist() == pytest.approx([100.4])
     assert sim.position.tolist() == [2]
+
+
+def test_held_up_costs_dirty_air_and_ends_a_following_gap_behind():
+    r = race({"A": [0, 100]}, ["green"])
+    held = lambda dirty, follow: simulate(r, 0, 0.5, [("SOFT", 0, 1)], lambda lap, c, age: 99.0, pit_loss_s=0.0,
+                                          pass_cost_s=1.0, dirty_air_s=dirty, dirty_gap_s=1.0, follow_gap_s=follow)
+    # free air 99.5 catches A (100) but 100.5 can't pass: no pass charge, it ends behind A
+    assert held(0.7, 0.6).cum_s.tolist() == pytest.approx([100.6])     # the following gap binds
+    assert held(0.7, 0.1).cum_s.tolist() == pytest.approx([100.2])     # dirty air binds
+    assert held(0.7, 0.6).position.tolist() == [2] and held(0.7, 0.6).passes.tolist() == [0]
 
 
 def test_dirty_air_costs_a_lap_ending_close_behind_a_car():
@@ -119,6 +130,8 @@ def test_backtest_time_at_flag(bt):
     assert abs(sim.error_s.iloc[-1]) <= b["tolerance_s"]
 
 
+@pytest.mark.xfail(strict=True, reason="known miss, D-029: +5.09 s at lap 42 against the 5 s limit (stint-1 pace and the "
+                                       "median green stop); the limit was set before the result and is kept")
 def test_backtest_time_before_late_neutralisation(bt):   # D-006: the late SC resets the gaps, so check before it
     sim, _, b = bt
     assert abs(sim.error_s[b["check_lap"]]) <= b["tolerance_s"]

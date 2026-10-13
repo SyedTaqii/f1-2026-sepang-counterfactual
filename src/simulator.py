@@ -14,7 +14,8 @@ def race_from_laps(laps, neutral, wear):
     return race
 
 
-def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s=0.0, dirty_air_s=0.0, dirty_gap_s=0.0):
+def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s=0.0, dirty_air_s=0.0, dirty_gap_s=0.0,
+             follow_gap_s=0.0):
     """Run the ghost from the end of `start_lap` (cumulative time `start_s`, same clock as race['times']) to the flag.
 
     race: times (lap x driver cumulative s, NaN = not running), pit_in / pit_out (lap x driver, in-/out-lap),
@@ -22,8 +23,9 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
     stints: [(compound, age at the end of start_lap or at the stop, last lap)]; the ghost stops after each
           stint's last lap except the final stint's.
     lap_time(lap, compound, age): the ghost's green-lap time.
-    Green lap: lap_time, + pit_loss_s on an in-lap, + traffic: pass_cost_s per car caught, dirty_air_s if it ends
-    the lap within dirty_gap_s of a car ahead (see _traffic). The defaults are free passing and no dirty air.
+    Green lap: lap_time, + pit_loss_s on an in-lap, + traffic: pass_cost_s per car passed, dirty_air_s if it ends
+    the lap within dirty_gap_s of a car ahead or is held up behind one, never closer than follow_gap_s behind the
+    car holding it up (see _traffic). The defaults are free passing and no dirty air.
     Neutralised lap: the ghost copies the real cars around it on the road (_copy): the ones on a normal lap or,
     when it stops, the ones that stopped that lap (over the in-lap and the out-lap).
     Returns one row per lap: cum_s, lap_s, position, compound, age, passes."""
@@ -47,7 +49,7 @@ def simulate(race, start_lap, start_s, stints, lap_time, pit_loss_s, pass_cost_s
             t, out_lap = [_copy(T, stoppers, i, t, m) for m in (i, i + 1)]
         elif neutral[i] == "green":
             t += lap_time(n, comp, age) + (pit_loss_s if stop else 0.0)
-            t, passes = _traffic(prev, now, busy[i], t_prev, t, pass_cost_s, dirty_air_s, dirty_gap_s)
+            t, passes = _traffic(prev, now, busy[i], t_prev, t, pass_cost_s, dirty_air_s, dirty_gap_s, follow_gap_s)
         else:
             t = _copy(T, ~np.isnan(prev) & ~np.isnan(now) & ~busy[i], i, t, i)
         rows.append((n, t, t - t_prev, 1 + int(np.sum(now < t)), comp, age, passes))
@@ -83,23 +85,28 @@ def _busy(race):
     return race["pit_in"] | race["pit_out"] | retiring(race["times"])
 
 
-def _traffic(prev, now, busy, t_prev, t, pass_s, dirty_s, gap_s):
-    """Each car the ghost catches this lap (ahead at the end of the last one, behind its free-air time now, on a
-    normal lap), met in road order, costs pass_s. Still ahead after paying: a pass. Not: it's stuck behind that car
-    and can't reach the ones further up. Then, ending the lap within gap_s of a car ahead costs dirty_s. Neither
-    cost can drop it behind a car it passed this lap (it would re-pass the same car next lap); it stays level.
-    Arrays are one lap of the field. Returns the ghost's time and its number of passes."""
+def _traffic(prev, now, busy, t_prev, t, pass_s, dirty_s, gap_s, follow_s):
+    """The cars the ghost catches this lap (ahead at the end of the last one, behind its free-air time now, on a
+    normal lap), met in road order. If it's still ahead after paying pass_s, that's a pass. If not, it's held up
+    behind that car: it loses dirty_s and crosses the line at least follow_s behind it (no charge for the attempt:
+    the data measures completed passes and laps in dirty air, nothing else). A lap that ends within gap_s of a car
+    ahead also costs dirty_s. Nothing can drop it behind a car it passed this lap (it would re-pass the same car next
+    lap); it stays level. Arrays are one lap of the field. Returns the ghost's time and its number of passes."""
     caught = np.flatnonzero((prev < t_prev) & (now > t) & ~busy)
-    passes, floor = 0, np.inf
+    passes, floor, held = 0, np.inf, None
     for j in caught[np.argsort(-prev[caught], kind="stable")]:
-        t += pass_s
-        if t >= now[j]:
+        if t + pass_s >= now[j]:
+            held = j
             break
+        t += pass_s
         passes += 1
         floor = min(floor, now[j])
-    ahead = now[(now <= t) & ~busy]
-    if ahead.size and t - ahead.max() < gap_s:
-        t += dirty_s
+    if held is not None:
+        t = max(t + dirty_s, now[held] + follow_s)
+    else:
+        ahead = now[(now <= t) & ~busy]
+        if ahead.size and t - ahead.max() < gap_s:
+            t += dirty_s
     return min(t, floor), passes
 
 

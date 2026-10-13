@@ -29,8 +29,10 @@ def scenario(p, cfg):
             "actual": {"start_lap": real_from, "start_s": me.Time[real_from].total_seconds(),        # as the back-test
                        "stints": real_stints(me, real_from)},
             "start_gaps": start_gaps(p["df"], p["session"].results, cfg).gap_s.to_numpy(),
-            "dirty_gap_s": cfg["pace"]["traffic_gap_s"], "dry_offset_s": cfg["monte_carlo"]["dry_pace_offset_s"],
+            "dirty_gap_s": cfg["pace"]["traffic_gap_s"], "follow_gap_s": p["traffic"]["follow_gap_s"],
+            "dry_offset_s": cfg["monte_carlo"]["dry_pace_offset_s"],
             "inter": ip, "ref": ip["ref"].to_dict(), "effects": p["effects"].to_dict(),
+            "stint_of": me.Stint.dropna().astype(int).to_dict(),   # both plans run his real stints after the crossover
             # lap-to-lap noise: inter laps around the reference when wet, the target's dry residuals when dry
             "noise_sd": wet.map({True: ip["lap_sd"], False: p["fit"]["resid_sd"]}).to_dict()}
 
@@ -38,12 +40,12 @@ def scenario(p, cfg):
 def ghost(p, s, plan, start_gap_s, offset, coef, pass_s, dirty_s, pit_loss_s, noise):
     """One race of `plan` (s["inters"] or s["actual"]). offset: inter pace vs the reference (s/lap); coef: dry-fit
     coefficients (dict); noise: {lap: s} added to every green lap."""
-    dry = dry_lap_time(coef, s["effects"], p["n_laps"])
+    dry = dry_lap_time(coef, s["effects"], p["n_laps"], s["stint_of"])
     ref, dry_offset = s["ref"], s["dry_offset_s"]
     lap_time = lambda lap, comp, age: noise.get(lap, 0.0) + (
         ref[lap] + offset if comp == "INTERMEDIATE" else dry(lap, comp, age) + dry_offset)
     return simulate(p["race"], plan["start_lap"], plan["start_s"] + start_gap_s, plan["stints"], lap_time, pit_loss_s,
-                    pass_cost_s=pass_s, dirty_air_s=dirty_s, dirty_gap_s=s["dirty_gap_s"])
+                    pass_cost_s=pass_s, dirty_air_s=dirty_s, dirty_gap_s=s["dirty_gap_s"], follow_gap_s=s["follow_gap_s"])
 
 
 def run(cfg, p=None, n=None):
@@ -121,6 +123,8 @@ def run(cfg, p=None, n=None):
                    "start_gaps_s": [round(float(g), 2) for g in s["start_gaps"]],
                    "pass_cost_s": round(float(central_tr["pass_cost_s"]), 3), "dirty_air_s": round(float(central_tr["dirty_air_s"]), 3),
                    "green_pit_loss_median_s": round(float(p["green_loss"].median()), 2),
+                   "stint_pace_s_per_lap": {k: {"offset": round(float(fit["coef"][k]), 2), "se": round(float(np.sqrt(fit["cov"].loc[k, k])), 2)}
+                                            for k in fit["coef"].index if k.startswith("stint_")},
                    "lap_noise_sd_s": {"wet": round(float(ip["lap_sd"]), 3), "dry": round(float(fit["resid_sd"]), 3)},
                    "inters_plan": [[c, float(a), int(last)] for c, a, last in s["inters"]["stints"]],
                    "actual_plan": [[c, float(a), int(last)] for c, a, last in s["actual"]["stints"]]},
@@ -145,6 +149,14 @@ def tornado(cfg, p):
     Bars: the expected finishing position on inters (and the paired gain) at each end."""
     n = cfg["sensitivity"]["n"]
     base = run(cfg, p, n)
+    i = base["inputs"]                         # a range set around an old measurement would make both ends one-sided
+    central = {"monte_carlo.fixed.inter_offset_s": i["inter_offset_s_per_lap"]["mu"], "sim.pass_cost_s": i["pass_cost_s"],
+               "sim.dirty_air_s": i["dirty_air_s"], "monte_carlo.fixed.green_pit_loss_s": i["green_pit_loss_median_s"],
+               "monte_carlo.fixed.start_gap_s": float(np.median(i["start_gaps_s"])),
+               "monte_carlo.dry_pace_offset_s": cfg["monte_carlo"]["dry_pace_offset_s"]}
+    stale = [t["key"] for t in cfg["sensitivity"]["tornado"] if t["key"] in central and not t["low"] <= central[t["key"]] <= t["high"]]
+    if stale:
+        raise ValueError(f"sensitivity.tornado ranges miss the measured value for {stale}: update them in config.yaml")
     bars = []
     for t in cfg["sensitivity"]["tornado"]:
         bar = {"label": t["label"], "key": t["key"], "low": t["low"], "high": t["high"]}

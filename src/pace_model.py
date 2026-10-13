@@ -42,38 +42,49 @@ def add_lap_features(laps, phases, cfg):
     return df
 
 
-def design(d, n_laps, target):
-    """The dry fit's regressors for the laps in d (see fit_pace)."""
+def design(d, n_laps, target, stints=()):
+    """The dry fit's regressors for the laps in d (see fit_pace). Each of the target's `stints` gets its own pace
+    offset, stint_<n>."""
     comp = pd.get_dummies(d.Compound.replace("None", "UNKNOWN"), dtype=float)
-    return pd.concat([comp, comp.mul(d.eff_age, axis=0).add_prefix("deg_"),
-                      (n_laps - d.LapNumber).rename("remaining").astype(float),
-                      pd.get_dummies(d.Driver, dtype=float).drop(columns=target, errors="ignore").add_prefix("d_")], axis=1)
+    parts = [comp, comp.mul(d.eff_age, axis=0).add_prefix("deg_"), (n_laps - d.LapNumber).rename("remaining").astype(float),
+             pd.get_dummies(d.Driver, dtype=float).drop(columns=target, errors="ignore").add_prefix("d_")]
+    for n in stints:
+        parts.append(((d.Driver == target) & (d.Stint == n)).astype(float).rename(f"stint_{n}"))
+    return pd.concat(parts, axis=1)
 
 
 def fit_pace(df, cfg):
     """Field-wide OLS on every driver's clean dry laps from dry_fit_start_lap:
 
-        lap_s = <compound> + deg_<compound> * eff_age + remaining * laps_remaining + d_<driver>
+        lap_s = <compound> + deg_<compound> * eff_age + remaining * laps_remaining + d_<driver> [+ stint_<n>]
 
     The target has d = 0, so <compound> is its pace on fresh tyres on the last lap, and d_<drv> is everyone
-    else's offset to it (positive = slower). `remaining` is fuel burn-off and the track rubbering in, together.
+    else's offset to it (positive = slower). With pace.stint_pace, the target's pace is fitted per tyre stint:
+    stint_<n> is his offset in stint n against his first stint in the fit (D-029). `remaining` is fuel burn-off and the track rubbering in, together.
     Only the whole field separates it from tyre deg: on any one lap, 20 cars run very different tyre ages.
     Laps with unknown tyre age are dropped. The coefficient covariance and the target's residual sd are the
     uncertainty the Monte Carlo samples."""
     target = cfg["drivers"]["target"]
     d = df[df.clean & (df.condition == "dry") & (df.LapNumber >= cfg["pace"]["dry_fit_start_lap"])]
     d = d.dropna(subset=["eff_age"])
-    X = design(d, df.LapNumber.max(), target)
+    stints = []
+    if cfg["pace"]["stint_pace"]:              # every target stint after his first in the fit, if the data can separate it
+        for n in sorted(int(s) for s in d.Stint[d.Driver == target].unique())[1:]:
+            X = design(d, df.LapNumber.max(), target, stints + [n])
+            if np.linalg.matrix_rank(X.to_numpy()) == X.shape[1]:   # not if, say, only he ran that compound
+                stints.append(n)
+    X = design(d, df.LapNumber.max(), target, stints)
     coef, *_ = np.linalg.lstsq(X, d.lap_s, rcond=None)
     resid = d.lap_s - X @ coef
     s2 = resid @ resid / (len(d) - X.shape[1])
     return {"coef": pd.Series(coef, X.columns), "cov": pd.DataFrame(s2 * np.linalg.inv(X.T @ X), X.columns, X.columns),
-            "resid_sd": float(resid[d.Driver == target].std()), "n": len(d), "n_target": int((d.Driver == target).sum())}
+            "resid_sd": float(resid[d.Driver == target].std()), "n": len(d), "n_target": int((d.Driver == target).sum()),
+            "stints": stints}
 
 
 def residuals(d, fit, n_laps, target):
     """Lap time minus the fit's prediction, for the laps in d whose driver and compound are in the fit."""
-    X = design(d, n_laps, target)
+    X = design(d, n_laps, target, fit.get("stints", ()))
     keep = X[X.columns.difference(fit["coef"].index)].eq(0).all(axis=1)
     return d.lap_s[keep] - X[keep].reindex(columns=fit["coef"].index, fill_value=0.0) @ fit["coef"]
 
@@ -94,6 +105,7 @@ def traffic_costs(df, fit, effects, passes, incident_laps, cfg):
     laps with no pass. Laps on which a car's timing stops (incident_laps: a crawl back to retire, yellow flags) are
     left out: cars there lose 10-30 s to the incident, not to traffic. The target is left out too, so the
     back-test checks these numbers instead of being fitted by them.
+    Also returns follow_gap_s: the median gap at the line on those dirty-air laps, i.e. how close a held-up car runs.
     Returns coef and cov (pass, dirty) for sampling, and the counts behind them."""
     target = cfg["drivers"]["target"]
     d = df[(df.condition == "dry") & (df.neutral == "green") & df.PitInTime.isna() & df.PitOutTime.isna()
@@ -108,13 +120,16 @@ def traffic_costs(df, fit, effects, passes, incident_laps, cfg):
     e = y - A @ coef
     cov = e @ e / (len(y) - A.shape[1]) * np.linalg.inv(A.T @ A)
     return {"coef": pd.Series(coef[1:], x.columns), "cov": pd.DataFrame(cov[1:, 1:], x.columns, x.columns),
+            "follow_gap_s": float(d.gap_ahead[x.dirty.to_numpy() == 1].median()),
             "n_passes": int(x["pass"].sum()), "n_dirty": int(x.dirty.sum()), "n": len(x)}
 
 
-def dry_lap_time(coef, effects, n_laps):
-    """The target's green dry lap time, lap_time(lap, compound, age), for the simulator. coef can be a sampled set."""
+def dry_lap_time(coef, effects, n_laps, stint_of=None):
+    """The target's green dry lap time, lap_time(lap, compound, age), for the simulator. coef can be a sampled set.
+    stint_of: {lap: the target's real stint}, for the per-stint pace offsets (none for the fit's base stint)."""
+    stint = (lambda lap: coef.get(f"stint_{stint_of.get(lap)}", 0.0)) if stint_of else (lambda lap: 0.0)
     return lambda lap, comp, age: (coef[comp] + coef[f"deg_{comp}"] * age + coef["remaining"] * (n_laps - lap)
-                                   + effects.get(lap, 0.0))
+                                   + effects.get(lap, 0.0) + stint(lap))
 
 
 def se(fit, name):
