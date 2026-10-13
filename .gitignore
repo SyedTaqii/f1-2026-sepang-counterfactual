@@ -3,3 +3,8 @@ cache/
 __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
+
+# Claude Code and project-process notes stay local; README.md is the only published markdown
+.claude/
+*.md
+!README.md

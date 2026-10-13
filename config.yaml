@@ -77,7 +77,7 @@ repeat:
 
 replay:                             # the race replay: real GPS for the field, the central inters run as a ghost (D-028)
   hz: 2                             # GPS samples per second kept (FastF1 has about 3.8); 2 keeps the page near 2 MB
-  html: outputs/race_replay.html
+  html: docs/index.html            # GitHub Pages serves the repo's /docs folder
   gif: outputs/race_replay.gif
   gif_fps: 8
   gif_segments:                     # the key moments for the README; speed = race seconds per GIF second

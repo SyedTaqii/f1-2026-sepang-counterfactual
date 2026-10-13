@@ -45,7 +45,7 @@ One assumption at a time, set to a low and a high value (1,000 draws each, same 
 
 ![Race replay](outputs/race_replay.gif)
 
-`outputs/race_replay.html` opens in any browser. It replays the whole race from every car's GPS (FastF1 position data), with **the ghost** (blue: the model's Hamilton who started on inters) driving alongside **the real Hamilton** (orange). It has:
+**Live replay: https://syedtaqii.github.io/f1-2026-sepang-counterfactual/** (GitHub Pages, from `docs/index.html`, which also opens straight from the file in any browser). It replays the whole race from every car's GPS (FastF1 position data), with **the ghost** (blue: the model's Hamilton who started on inters) driving alongside **the real Hamilton** (orange). It has:
 - a timing tower, play/pause, speed control, a lap scrubber and jumps to the key moments;
 - a lap-time chart (all laps, or zoomed to racing pace) next to a ghost-vs-real lap table with the gap after every lap.
 - **Where the positions come from:** the ghost only has lap times, so on each lap it follows the line of a real car that ran the same kind of lap (normal, in-lap or out-lap), stretched to its own lap time.
@@ -115,4 +115,4 @@ python -m src.plots           # the 4 charts -> outputs/*.png
 pytest                        # simulator mechanics, back-test, Monte Carlo, README numbers
 ```
 
-The notebook `notebooks/sepang_counterfactual.ipynb` runs everything end to end, with the reasoning for each step. Every model number in this README comes from `outputs/results.json`, and a test checks that; the earlier version's numbers are in its commit. The race facts come from `python -m src.data_loader`. Every assumption is in `config.yaml`; design decisions and their history are in `Decisions.md`.
+The notebook `notebooks/sepang_counterfactual.ipynb` runs everything end to end, with the reasoning for each step. Every model number in this README comes from `outputs/results.json`, and a test checks that; the earlier version's numbers are in its commit. The race facts come from `python -m src.data_loader`. Every assumption is in `config.yaml`.

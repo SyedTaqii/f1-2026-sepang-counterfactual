@@ -656,7 +656,7 @@
     },
     "replay": {
       "hz": 2,
-      "html": "outputs/race_replay.html",
+      "html": "docs/index.html",
       "gif": "outputs/race_replay.gif",
       "gif_fps": 8,
       "gif_segments": [
