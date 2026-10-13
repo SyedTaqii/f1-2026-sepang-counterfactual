@@ -8,3 +8,6 @@ __pycache__/
 .claude/
 *.md
 !README.md
+
+# LinkedIn / promo assets, kept local
+promo/
